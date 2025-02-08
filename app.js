@@ -10,7 +10,7 @@ import http from "http";
 import https from "https";
 import { v4 as uuidv4 } from "uuid";
 import { generateQuestionsWithRetry } from './geminiQuestionGenerator.js';
-
+import { TOPICS, GAME_STATES, GameSession, gameManager } from './gameConfig.js';
 
 // Custom HTTP and HTTPS Agents
 const httpAgent = new http.Agent({
@@ -64,37 +64,6 @@ app.use((req, res, next) => {
 
 
 
-// Game session manager
-class GameSession {
-  constructor(gameId, hostPlayer) {
-    this.gameId = gameId;
-    this.hostPlayer = hostPlayer;
-    this.guestPlayer = null;
-    this.topic = null;
-    this.questionCount = 0;
-    this.questions = [];
-    this.currentQuestionIndex = 0;
-    this.scores = {};
-    this.answers = {};
-  }
-}
-
-// Game state manager
-const gameManager = {
-  sessions: new Map(),
-  userContexts: new Map(),
-
-  createSession(hostPlayer) {
-    const gameId = uuidv4();
-    const session = new GameSession(gameId, hostPlayer);
-    this.sessions.set(gameId, session);
-    return gameId;
-  },
-
-  getSession(gameId) {
-    return this.sessions.get(gameId);
-  }
-};
 
 
 
