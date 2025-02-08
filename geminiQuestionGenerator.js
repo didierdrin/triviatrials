@@ -137,7 +137,15 @@ async function generateQuestions(topic, count) {
       const text = result.text;
 
       // Parse the generated text into JSON
-      const questionData = JSON.parse(text);
+      // Remove code block markers if they exist
+let cleanText = text.trim();
+if (cleanText.startsWith("```json")) {
+  // Remove the starting ```json and ending ```
+  cleanText = cleanText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+}
+const questionData = JSON.parse(cleanText);
+
+      //const questionData = JSON.parse(text);
 
       // Randomize the order of options
       const correctAnswer = questionData.options[0];
