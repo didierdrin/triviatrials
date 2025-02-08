@@ -85,7 +85,7 @@ async function generateQuestions(topic, count) {
   const previousQuestions = new Set();
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
     for (let i = 0; i < count; i++) {
       // Select difficulty based on progress
