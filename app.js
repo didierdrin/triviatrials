@@ -62,7 +62,194 @@ app.use((req, res, next) => {
 });
 
 
+// New functions
 
+// Add these message handling functions to your app.js
+
+async function sendDefaultMessage(phone, phoneNumberId) {
+  await sendWhatsAppMessage(phone, {
+    type: "text",
+    text: {
+      body: "Send 'play' to start a new game or 'help' for instructions."
+    }
+  }, phoneNumberId);
+}
+
+async function sendWelcomeMessage(phone, phoneNumberId) {
+  await sendWhatsAppMessage(phone, {
+    type: "interactive",
+    interactive: {
+      type: "button",
+      header: {
+        type: "text",
+        text: "🎮 Welcome to Trivia Trials! 🎮"
+      },
+      body: {
+        text: "Battle with peers, show your knowledge across various topics! Choose your preferred topic to begin:"
+      },
+      action: {
+        buttons: [
+          {
+            type: "reply",
+            reply: { id: "topic_science", title: "Science" }
+          },
+          {
+            type: "reply",
+            reply: { id: "topic_history", title: "History" }
+          },
+          {
+            type: "reply",
+            reply: { id: "topic_geography", title: "Geography" }
+          }
+        ]
+      }
+    }
+  }, phoneNumberId);
+
+  // Send second message with remaining topics
+  await sendWhatsAppMessage(phone, {
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: {
+        text: "More topics:"
+      },
+      action: {
+        buttons: [
+          {
+            type: "reply",
+            reply: { id: "topic_entertainment", title: "Entertainment" }
+          },
+          {
+            type: "reply",
+            reply: { id: "topic_sports", title: "Sports" }
+          },
+          {
+            type: "reply",
+            reply: { id: "topic_technology", title: "Technology" }
+          }
+        ]
+      }
+    }
+  }, phoneNumberId);
+}
+
+async function sendHelpMessage(phone, phoneNumberId) {
+  const helpText = `🎮 *How to Play Trivia Trials* 🎮
+
+1️⃣ Type 'play' or 'start' to begin
+2️⃣ Choose your preferred topic
+3️⃣ Select game mode (Single Player or Multiplayer)
+4️⃣ Choose number of questions (5-20)
+5️⃣ Answer questions by selecting options
+
+*Commands:*
+• 'play' - Start new game
+• 'help' - Show this help message
+• 'quit' - Exit current game
+
+*Game Modes:*
+• Single Player - Play solo
+• Multiplayer - Challenge a friend`;
+
+  await sendWhatsAppMessage(phone, {
+    type: "text",
+    text: {
+      body: helpText
+    }
+  }, phoneNumberId);
+}
+
+async function handleQuestionCountInput(input, phone, phoneNumberId) {
+  const count = parseInt(input);
+  if (isNaN(count) || count < 5 || count > 20) {
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: {
+        body: "Please enter a number between 5 and 20 for the number of questions."
+      }
+    }, phoneNumberId);
+    return;
+  }
+
+  const userContext = gameManager.userContexts.get(phone);
+  userContext.questionCount = count;
+  userContext.state = GAME_STATES.IN_GAME;
+  gameManager.userContexts.set(phone, userContext);
+
+  // Start the game with the selected question count
+  await startGame(phone, phoneNumberId, userContext.topic, count);
+}
+
+async function handleGameAnswer(answer, phone, phoneNumberId) {
+  const userContext = gameManager.userContexts.get(phone);
+  if (!userContext || userContext.state !== GAME_STATES.IN_GAME) {
+    await sendDefaultMessage(phone, phoneNumberId);
+    return;
+  }
+
+  // Implementation for handling game answers
+  // Will be expanded with actual game logic
+  await sendWhatsAppMessage(phone, {
+    type: "text",
+    text: {
+      body: "Answer received! Next question coming up..."
+    }
+  }, phoneNumberId);
+}
+
+async function startGame(phone, phoneNumberId, topic, questionCount) {
+  try {
+    // Generate questions using Gemini
+    const questions = await generateQuestionsWithRetry(topic, questionCount);
+    
+    // Store questions in game session
+    const userContext = gameManager.userContexts.get(phone);
+    userContext.questions = questions;
+    userContext.currentQuestionIndex = 0;
+    userContext.score = 0;
+    gameManager.userContexts.set(phone, userContext);
+    
+    // Send first question
+    await sendQuestion(phone, phoneNumberId, questions[0], 1, questionCount);
+    
+  } catch (error) {
+    console.error('Error starting game:', error);
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: {
+        body: "Sorry, we encountered an error starting the game. Please try again."
+      }
+    }, phoneNumberId);
+  }
+}
+
+async function sendQuestion(phone, phoneNumberId, questionData, currentNumber, totalQuestions) {
+  const optionLetters = ['A', 'B', 'C', 'D'];
+  
+  const questionText = `Question ${currentNumber}/${totalQuestions}:\n\n${questionData.question}\n\n` +
+    questionData.options.map((option, index) => 
+      `${optionLetters[index]}) ${option}`
+    ).join('\n');
+
+  await sendWhatsAppMessage(phone, {
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: {
+        text: questionText
+      },
+      action: {
+        buttons: optionLetters.slice(0, questionData.options.length).map(letter => ({
+          type: "reply",
+          reply: { id: `answer_${letter.toLowerCase()}`, title: letter }
+        }))
+      }
+    }
+  }, phoneNumberId);
+}
+
+// Could be done
 
 
 
@@ -286,6 +473,16 @@ async function testWhatsAppConnection() {
     return false;
   }
 }
+
+// Function to format phone number
+const formatPhoneNumber = (phone) => {
+  let cleaned = phone.replace(/[^\d+]/g, "");
+  if (!cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+  return cleaned;
+};
+
 
 // Unified message sending function
 async function sendWhatsAppMessage(phone, messagePayload, phoneNumberId) {
