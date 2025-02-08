@@ -77,6 +77,9 @@ Requirements:
 
 // Main question generation function
 async function generateQuestions(topic, count) {
+  // Normalize the topic so it matches keys in TOPIC_AREAS (e.g., "Science" instead of "science")
+  const normalizedTopic = topic.charAt(0).toUpperCase() + topic.slice(1).toLowerCase();
+
   const questions = [];
   const usedSubtopics = new Set();
   const previousQuestions = new Set();
@@ -86,37 +89,35 @@ async function generateQuestions(topic, count) {
 
     for (let i = 0; i < count; i++) {
       // Select difficulty based on progress
-      const difficulty = i < count * 0.3 ? 'easy' : 
-                        i < count * 0.7 ? 'medium' : 
+      const difficulty = i < count * 0.3 ? 'easy' :
+                        i < count * 0.7 ? 'medium' :
                         'hard';
 
       // Select subtopic ensuring even distribution
-      let availableSubtopics = TOPIC_AREAS[topic].filter(st => !usedSubtopics.has(st));
+      let availableSubtopics = TOPIC_AREAS[normalizedTopic].filter(st => !usedSubtopics.has(st));
       if (availableSubtopics.length === 0) {
         usedSubtopics.clear();
-        availableSubtopics = TOPIC_AREAS[topic];
+        availableSubtopics = TOPIC_AREAS[normalizedTopic];
       }
       const subtopic = availableSubtopics[Math.floor(Math.random() * availableSubtopics.length)];
       usedSubtopics.add(subtopic);
 
-      // Generate cache key
+      // Generate cache key and check cache
       const cacheKey = generateCacheKey(topic, i);
-
-      // Check cache first
       if (questionCache.has(cacheKey)) {
         questions.push(questionCache.get(cacheKey));
         continue;
       }
 
-      // Generate prompt
+      // Generate the prompt
       const prompt = generateQuestionPrompt(
-        topic,
+        normalizedTopic, // use normalizedTopic here
         subtopic,
         difficulty,
         Array.from(previousQuestions)
       );
 
-      // Get response from Gemini
+      // Get response from Gemini AI
       const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text();
@@ -149,12 +150,12 @@ async function generateQuestions(topic, count) {
     }
 
     return questions;
-
   } catch (error) {
     console.error('Error generating questions:', error);
     throw new Error('Failed to generate questions');
   }
 }
+
 
 // Helper function to shuffle array
 function shuffleArray(array) {
