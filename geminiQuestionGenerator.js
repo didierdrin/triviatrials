@@ -66,8 +66,7 @@ Format the response exactly as follows:
   "options": [
     "First option (correct answer)",
     "Second option",
-    "Third option",
-    "Fourth option"
+    "Third option"
   ],
   "explanation": "Brief explanation of why the first option is correct"
 }
