@@ -256,21 +256,27 @@ async function sendQuestion(phone, phoneNumberId, questionData, currentNumber, t
 
 // Message handlers
 async function handleTextMessages(message, phone, phoneNumberId) {
-  const userContext = gameManager.userContexts.get(phone) || {
-    state: GAME_STATES.IDLE
-  };
+  // Retrieve the user context from the game manager (or default to IDLE)
+  const userContext = gameManager.userContexts.get(phone) || { state: GAME_STATES.IDLE };
 
+  // When the user types "play trivia"...
   if (message.text.body.toLowerCase() === 'play trivia') {
-    await startGame(phone, phoneNumberId);
+    // Update the user context to indicate that the game is now starting
+    userContext.state = GAME_STATES.TOPIC_SELECTION; // Or any state you define for topic selection
+    gameManager.userContexts.set(phone, userContext);
+
+    // Send the welcome message with topic options
+    await sendWelcomeMessage(phone, phoneNumberId);
     return;
   }
 
+  // When the user types "help", send help instructions
   if (message.text.body.toLowerCase() === 'help') {
     await sendHelpMessage(phone, phoneNumberId);
     return;
   }
 
-  // Handle game flow based on state
+  // Process the message based on the current game state
   switch (userContext.state) {
     case GAME_STATES.QUESTION_COUNT:
       await handleQuestionCountInput(message.text.body, phone, phoneNumberId);
@@ -282,9 +288,6 @@ async function handleTextMessages(message, phone, phoneNumberId) {
       await sendDefaultMessage(phone, phoneNumberId);
   }
 }
-
-
-
 
 
 
