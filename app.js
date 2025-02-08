@@ -225,7 +225,7 @@ async function startGame(phone, phoneNumberId, topic, questionCount) {
 }
 
 async function sendQuestion(phone, phoneNumberId, questionData, currentNumber, totalQuestions) {
-  const optionLetters = ['A', 'B', 'C', 'D'];
+  const optionLetters = ['A', 'B', 'C'];
   
   const questionText = `Question ${currentNumber}/${totalQuestions}:\n\n${questionData.question}\n\n` +
     questionData.options.map((option, index) => 
