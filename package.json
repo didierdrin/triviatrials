@@ -18,6 +18,8 @@
     "firebase": "^11.0.2",
     "firebase-admin": "^11.0.0",
     "@google/generative-ai": "^0.2.0",
+    "genkit": "*",
+    "@genkit-ai/googleai": "*",
     "uuid": "*"
   }
 }
