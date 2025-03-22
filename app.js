@@ -107,10 +107,10 @@ async function sendWelcomeMessage(phone, phoneNumberId) {
         text: "🎮 Welcome to Trivia Trials! 🎮"
       },
       body: {
-        text: "Test your knowledge! Choose a topic to get started:"
+        text: "Test your knowledge! Get started:"
       },
       footer: {
-        text: "Select a topic from the list below"
+        text: "Select a topic"
       },
       action: {
         button: "View Topics",
