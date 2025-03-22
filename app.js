@@ -87,51 +87,77 @@ async function sendDefaultMessage(phone, phoneNumberId) {
   await sendWhatsAppMessage(phone, {
     type: "text",
     text: {
-      body: "Send 'play trivia' to start a new game or 'help' for instructions."
+      body: `*Start*\nSend 'Play trivia' to start a new game or 'help' for instructions.`
     }
   }, phoneNumberId);
 }
 
 async function sendWelcomeMessage(phone, phoneNumberId) {
-  await sendWhatsAppMessage(phone, {
+  // Update user context with a new stage
+  const userContext = gameManager.userContexts.get(phone) || {};
+  userContext.stage = "EXPECTING_WELCOME"; // Mark stage as welcome
+  gameManager.userContexts.set(phone, userContext);
+
+  const payload = {
     type: "interactive",
     interactive: {
-      type: "button",
+      type: "list",
       header: {
         type: "text",
         text: "🎮 Welcome to Trivia Trials! 🎮"
       },
       body: {
-        text: "Test your knowledge across various topics! Choose your preferred topic to begin:"
+        text: "Test your knowledge! Choose a topic to get started:"
+      },
+      footer: {
+        text: "Select a topic from the list below"
       },
       action: {
-        buttons: [
-          { type: "reply", reply: { id: "topic_science", title: "Science" } },
-          { type: "reply", reply: { id: "topic_history", title: "History" } },
-          { type: "reply", reply: { id: "topic_geography", title: "Geography" } }
+        button: "View Topics",
+        sections: [
+          {
+            title: "Trivia Topics",
+            rows: [
+              {
+                id: "topic_science",
+                title: "Science",
+                description: "Explore scientific wonders"
+              },
+              {
+                id: "topic_history",
+                title: "History",
+                description: "Dive into the past"
+              },
+              {
+                id: "topic_geography",
+                title: "Geography",
+                description: "Discover world facts"
+              },
+              {
+                id: "topic_entertainment",
+                title: "Entertainment",
+                description: "Test pop culture knowledge"
+              },
+              {
+                id: "topic_sports",
+                title: "Sports",
+                description: "Score with sports trivia"
+              },
+              {
+                id: "topic_technology",
+                title: "Technology",
+                description: "Innovate with tech trivia"
+              }
+            ]
+          }
         ]
       }
     }
-  }, phoneNumberId);
+  };
 
-  // Send additional topic options
-  await sendWhatsAppMessage(phone, {
-    type: "interactive",
-    interactive: {
-      type: "button",
-      body: {
-        text: "More topics:"
-      },
-      action: {
-        buttons: [
-          { type: "reply", reply: { id: "topic_entertainment", title: "Entertainment" } },
-          { type: "reply", reply: { id: "topic_sports", title: "Sports" } },
-          { type: "reply", reply: { id: "topic_technology", title: "Technology" } }
-        ]
-      }
-    }
-  }, phoneNumberId);
+  await sendWhatsAppMessage(phone, payload, phoneNumberId);
 }
+
 
 async function sendHelpMessage(phone, phoneNumberId) {
   const helpText = `🎮 *How to Play Trivia Trials* 🎮
@@ -461,17 +487,28 @@ async function handleTextMessages(message, phone, phoneNumberId) {
 }
 
 async function handleInteractiveMessage(message, phone, phoneNumberId) {
-  const buttonId = message.interactive.button_reply.id;
+  const interactive = message.interactive;
+  // Check if the reply came from a list or button
+  const replyId = interactive.list_reply
+    ? interactive.list_reply.id
+    : interactive.button_reply
+      ? interactive.button_reply.id
+      : null;
   
-  if (buttonId.startsWith('topic_')) {
-    const topic = buttonId.replace('topic_', '');
+  if (!replyId) {
+    console.error("No valid interactive reply found.");
+    return;
+  }
+  
+  if (replyId.startsWith('topic_')) {
+    const topic = replyId.replace('topic_', '');
     await handleTopicSelection(topic, phone, phoneNumberId);
-  } else if (buttonId === 'single_player') {
+  } else if (replyId === 'single_player') {
     await startSinglePlayerGame(phone, phoneNumberId);
-  } else if (buttonId === 'multiplayer') {
+  } else if (replyId === 'multiplayer') {
     await startMultiplayerGame(phone, phoneNumberId);
-  } else if (buttonId.startsWith('answer_')) {
-    const answer = buttonId.replace('answer_', '');
+  } else if (replyId.startsWith('answer_')) {
+    const answer = replyId.replace('answer_', '');
     await handleGameAnswer(answer, phone, phoneNumberId);
   }
 }
