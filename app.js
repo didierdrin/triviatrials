@@ -162,14 +162,14 @@ async function sendWelcomeMessage(phone, phoneNumberId) {
 async function sendHelpMessage(phone, phoneNumberId) {
   const helpText = `🎮 *How to Play Trivia Trials* 🎮
 
-1️⃣ Type 'play trivia' to begin a game.
+1️⃣ Type 'play' to begin a game.
 2️⃣ Choose your preferred topic.
 3️⃣ Select game mode (Single Player or Multiplayer).
 4️⃣ Choose number of questions (5-20).
 5️⃣ Answer questions by selecting options.
 
 *Commands:*
-• 'play trivia' - Start new game
+• 'play' - Start new game
 • 'help' - Show this help message
 • 'quit' - Exit current game
 
@@ -331,7 +331,7 @@ async function handleGameAnswer(answer, phone, phoneNumberId) {
     }
     if (session.currentQuestionIndex >= session.questions.length) {
       session.status = "completed";
-      const finalMessage = `Game Over!\nFinal Scores:\nHost: ${session.scores[session.hostPlayer]}\nGuest: ${session.scores[session.guestPlayer]}\nType 'play trivia' to start a new game.`;
+      const finalMessage = `Game Over!\nFinal Scores:\nHost: ${session.scores[session.hostPlayer]}\nGuest: ${session.scores[session.guestPlayer]}\nType 'play' to start a new game.`;
       await sendWhatsAppMessage(session.hostPlayer, { type: "text", text: { body: finalMessage } }, phoneNumberId);
       await sendWhatsAppMessage(session.guestPlayer, { type: "text", text: { body: finalMessage } }, phoneNumberId);
       let hostContext = gameManager.userContexts.get(session.hostPlayer);
@@ -392,7 +392,7 @@ async function handleGameAnswer(answer, phone, phoneNumberId) {
       if (userContext.score >= userContext.questions.length * 20) {
         finalMessage += "🏆 Achievement Unlocked: Trivia Master!\n";
       }
-      finalMessage += "Type 'play trivia' to start a new game.";
+      finalMessage += "Type 'play' to start a new game.";
       await sendWhatsAppMessage(phone, {
         type: "text",
         text: { body: finalMessage }
