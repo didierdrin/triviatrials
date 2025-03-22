@@ -449,6 +449,7 @@ async function handleTextMessages(message, phone, phoneNumberId) {
 
 async function handleInteractiveMessage(message, phone, phoneNumberId) {
   const buttonId = message.interactive.button_reply.id;
+  
   if (buttonId.startsWith('topic_')) {
     const topic = buttonId.replace('topic_', '');
     await handleTopicSelection(topic, phone, phoneNumberId);
@@ -456,8 +457,12 @@ async function handleInteractiveMessage(message, phone, phoneNumberId) {
     await startSinglePlayerGame(phone, phoneNumberId);
   } else if (buttonId === 'multiplayer') {
     await startMultiplayerGame(phone, phoneNumberId);
+  } else if (buttonId.startsWith('answer_')) {
+    const answer = buttonId.replace('answer_', '');
+    await handleGameAnswer(answer, phone, phoneNumberId);
   }
 }
+
 
 async function handleTopicSelection(topic, phone, phoneNumberId) {
   await sendWhatsAppMessage(phone, {
