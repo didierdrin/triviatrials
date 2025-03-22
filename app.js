@@ -388,7 +388,16 @@ async function handleGameAnswer(answer, phone, phoneNumberId) {
       }, 1000);
     } else {
       userContext.state = GAME_STATES.GAME_OVER;
-      let finalMessage = `Game Over! Your final score is ${userContext.score}.\n`;
+
+      // Calculate the total possible score for the round
+  const totalPossible = userContext.questions.reduce((total, question) => {
+    if (question.difficulty === "easy") return total + 10;
+    if (question.difficulty === "medium") return total + 20;
+    if (question.difficulty === "hard") return total + 30;
+    return total;
+  }, 0);
+      
+      let finalMessage = `Game Over! Your final score is ${userContext.score}/${totalPossible}\n`;
       if (userContext.score >= userContext.questions.length * 20) {
         finalMessage += "🏆 Achievement Unlocked: Trivia Master!\n";
       }
