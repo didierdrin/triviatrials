@@ -87,7 +87,7 @@ async function sendDefaultMessage(phone, phoneNumberId) {
   await sendWhatsAppMessage(phone, {
     type: "text",
     text: {
-      body: `*Start*\nSend 'Play trivia' to start a new game or 'help' for instructions.`
+      body: `*Start*\nSend 'Play' to start a new game or 'help' for instructions.`
     }
   }, phoneNumberId);
 }
@@ -251,7 +251,7 @@ async function startGame(phone, phoneNumberId, topic, questionCount) {
 
 async function sendQuestion(phone, phoneNumberId, questionData, currentNumber, totalQuestions) {
   const optionLetters = ['A', 'B', 'C'];
-  const questionText = `Question ${currentNumber}/${totalQuestions}:\n\n${questionData.question}\n\n` +
+  const questionText = `*Question* ${currentNumber}/${totalQuestions}:\n\n${questionData.question}\n\n` +
     questionData.options.map((option, index) => `${optionLetters[index]}) ${option}`).join('\n');
 
   await sendWhatsAppMessage(phone, {
@@ -314,8 +314,8 @@ async function handleGameAnswer(answer, phone, phoneNumberId) {
       session.scores[phone] = (session.scores[phone] || 0) + pointsAwarded;
     }
     let feedbackMessage = isCorrect
-      ? `Correct! You've earned ${pointsAwarded} points.`
-      : `Incorrect! The correct answer was ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}. ${currentQuestion.explanation}`;
+      ? `Correct!\nYou've earned ${pointsAwarded} points.`
+      : `Incorrect!\nThe correct answer was ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}. ${currentQuestion.explanation}`;
     await sendWhatsAppMessage(phone, {
       type: "text",
       text: { body: feedbackMessage }
@@ -374,8 +374,8 @@ async function handleGameAnswer(answer, phone, phoneNumberId) {
       userContext.score += pointsAwarded;
     }
     let feedbackMessage = isCorrect
-      ? `Correct! You've earned ${pointsAwarded} points.`
-      : `Incorrect! The correct answer was ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}. ${currentQuestion.explanation}`;
+      ? `Correct!\nYou've earned ${pointsAwarded} points.`
+      : `Incorrect!\nThe correct answer was ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}. ${currentQuestion.explanation}`;
     await sendWhatsAppMessage(phone, {
       type: "text",
       text: { body: feedbackMessage }
@@ -464,7 +464,7 @@ async function handleTextMessages(message, phone, phoneNumberId) {
   // Retrieve user context (default to IDLE)
   const userContext = gameManager.userContexts.get(phone) || { state: GAME_STATES.IDLE };
 
-  if (message.text.body.toLowerCase() === 'play trivia') {
+  if (message.text.body.toLowerCase() === 'play') {
     userContext.state = GAME_STATES.TOPIC_SELECTION;
     gameManager.userContexts.set(phone, userContext);
     await sendWelcomeMessage(phone, phoneNumberId);
@@ -519,7 +519,7 @@ async function handleTopicSelection(topic, phone, phoneNumberId) {
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: "Choose game mode:" },
+      body: { text: `Game mode\nChoose an option` },
       action: {
         buttons: [
           { type: "reply", reply: { id: "single_player", title: "Single Player" } },
