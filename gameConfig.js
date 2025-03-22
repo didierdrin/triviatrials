@@ -1,4 +1,7 @@
 // gameConfig.js
+
+import { v4 as uuidv4 } from "uuid";
+
 export const TOPICS = [
   "Science",
   "History",
@@ -17,7 +20,6 @@ export const GAME_STATES = {
   GAME_OVER: 'GAME_OVER'
 };
 
-// Game session class
 export class GameSession {
   constructor(gameId, hostPlayer) {
     this.gameId = gameId;
@@ -29,10 +31,11 @@ export class GameSession {
     this.currentQuestionIndex = 0;
     this.scores = {};
     this.answers = {};
+    this.status = "waiting";  // waiting, in-progress, or completed
+    this.currentTurn = null;  // phone number of player whose turn it is
   }
 }
 
-// Game manager
 export const gameManager = {
   sessions: new Map(),
   userContexts: new Map(),
@@ -43,7 +46,6 @@ export const gameManager = {
     this.sessions.set(gameId, session);
     return gameId;
   },
-
   getSession(gameId) {
     return this.sessions.get(gameId);
   }
