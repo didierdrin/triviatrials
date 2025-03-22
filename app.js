@@ -187,18 +187,31 @@ async function handleQuestionCountInput(input, phone, phoneNumberId) {
   await startGame(phone, phoneNumberId, userContext.topic, count);
 }
 
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 async function startGame(phone, phoneNumberId, topic, questionCount) {
   try {
     // Generate questions using Gemini
     const questions = await generateQuestionsWithRetry(topic, questionCount);
     const userContext = gameManager.userContexts.get(phone);
-    userContext.questions = questions;
+
+    // Shuffle the questions so they appear in a random order each game
+    const shuffledQuestions = shuffleArray(questions);
+    
+    userContext.questions = shuffledQuestions;
     userContext.currentQuestionIndex = 0;
     userContext.score = 0;
     // For single-player, no gameId is set
     gameManager.userContexts.set(phone, userContext);
-    // Send the first question
-    await sendQuestion(phone, phoneNumberId, questions[0], 1, questions.length);
+    
+    // Send the first question from the shuffled set
+    await sendQuestion(phone, phoneNumberId, shuffledQuestions[0], 1, shuffledQuestions.length);
   } catch (error) {
     console.error('Error starting game:', error);
     await sendWhatsAppMessage(phone, {
