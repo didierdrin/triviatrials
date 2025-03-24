@@ -1,5 +1,5 @@
 // app.js
-
+import admin from 'firebase-admin';
 import express from "express";
 import bodyParser from "body-parser";
 import axios from "axios";
@@ -85,12 +85,12 @@ async function trackUser(phone) {
 
   // Not in cache - check Firebase (slow)
   try {
-    const userRef = doc(firestore, "users_globalt", formattedPhone);
-    const userSnapshot = await getDoc(userRef);
+    const userRef = firestore.collection("users_globalt").doc(formattedPhone);
+    const userSnapshot = await userRef.get();
     
-    if (!userSnapshot.exists()) {
+    if (!userSnapshot.exists) {
       // New user - save to Firebase and cache
-      await setDoc(userRef, {
+      await userRef.set({
         phone: formattedPhone,
         firstInteraction: new Date().toISOString(),
         lastInteraction: new Date().toISOString(),
@@ -102,10 +102,10 @@ async function trackUser(phone) {
       return true;
     } else {
       // Existing user - update last interaction
-      await setDoc(userRef, {
+      await userRef.update({
         lastInteraction: new Date().toISOString(),
-        messageCount: increment(1)
-      }, { merge: true });
+        messageCount: admin.firestore.FieldValue.increment(1)
+      });
       userCache.users.add(formattedPhone); // Add to cache
       return false;
     }
@@ -116,11 +116,29 @@ async function trackUser(phone) {
 }
 
 // --- NEW: API Endpoint to Get User Stats ---
-app.get("/user-stats", (req, res) => {
-  res.json({
-    totalUsers: userCache.totalCount,
-    cachedUsers: userCache.users.size,
-  });
+app.get("/user-stats", async (req, res) => {
+  try {
+    // Get the latest count from Firebase to ensure accuracy
+    const snapshot = await firestore.collection("users_globalt").get();
+    const actualCount = snapshot.size;
+    
+    // Update cache if needed
+    if (actualCount !== userCache.totalCount) {
+      userCache.totalCount = actualCount;
+      console.log(`Updated user count from Firebase: ${actualCount}`);
+    }
+    
+    res.json({
+      totalUsers: userCache.totalCount,
+      cachedUsers: userCache.users.size,
+    });
+  } catch (error) {
+    console.error("Error fetching user stats:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch user stats",
+      cachedUsers: userCache.users.size 
+    });
+  }
 });
 // ------------------------------
 // Message Sending Functions
