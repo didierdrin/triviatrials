@@ -104,7 +104,7 @@ async function sendWelcomeMessage(phone, phoneNumberId) {
       type: "list",
       header: {
         type: "text",
-        text: "🎮 Welcome to Trivia Trials! 🎮"
+        text: "🎮 Welcome to Trivia trials! 🎮"
       },
       body: {
         text: "Test your knowledge! Get started:"
