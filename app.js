@@ -248,7 +248,7 @@ async function sendWelcomeMessage(phone, phoneNumberId) {
 
 
 async function sendHelpMessage(phone, phoneNumberId) {
-  const helpText = `🎮 *How to Play Trivia Trials* 🎮
+  const helpText = `🎮 *How to Play*
 
 1️⃣ Type 'play' to begin a game.
 2️⃣ Choose your preferred topic.
