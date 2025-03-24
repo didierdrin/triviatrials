@@ -164,7 +164,7 @@ async function sendHelpMessage(phone, phoneNumberId) {
 
 1️⃣ Type 'play' to begin a game.
 2️⃣ Choose your preferred topic.
-3️⃣ Select game mode (Single Player or Multiplayer).
+3️⃣ Select game mode (Single Player or Multiplayer(Coming soon)).
 4️⃣ Choose number of questions (5-20).
 5️⃣ Answer questions by selecting options.
 
@@ -528,11 +528,11 @@ async function handleTopicSelection(topic, phone, phoneNumberId) {
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: `*Game mode*\nChoose an option` },
+      body: { text: `*Game mode*\nChoose an option(Multiplayer coming soon)` },
       action: {
         buttons: [
-          { type: "reply", reply: { id: "single_player", title: "Single Player" } },
-          { type: "reply", reply: { id: "multiplayer", title: "Multiplayer" } }
+          { type: "reply", reply: { id: "single_player", title: "Single Player" } }
+          // { type: "reply", reply: { id: "multiplayer", title: "Multiplayer" } }
         ]
       }
     }
