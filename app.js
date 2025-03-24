@@ -528,7 +528,7 @@ async function handleTopicSelection(topic, phone, phoneNumberId) {
     type: "interactive",
     interactive: {
       type: "button",
-      body: { text: `*Game mode*\nChoose an option(Multiplayer coming soon)` },
+      body: { text: `*Game mode*\nChoose an option\n(Multiplayer coming soon)` },
       action: {
         buttons: [
           { type: "reply", reply: { id: "single_player", title: "Single Player" } }
