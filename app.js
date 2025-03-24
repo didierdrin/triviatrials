@@ -52,6 +52,76 @@ app.use((req, res, next) => {
   next();
 });
 
+
+// --- NEW: In-Memory Cache for User Tracking ---
+const userCache = {
+  users: new Set(), // Stores phone numbers of known users
+  totalCount: 0,    // Total unique users (syncs with Firebase periodically)
+};
+
+// Initialize cache from Firebase on startup
+async function initializeUserCache() {
+  try {
+    const snapshot = await firestore.collection("users_globalt").get();
+    snapshot.forEach(doc => {
+      userCache.users.add(doc.id);
+    });
+    userCache.totalCount = snapshot.size;
+    console.log(`User cache initialized with ${userCache.totalCount} users.`);
+  } catch (error) {
+    console.error("Error initializing user cache:", error);
+  }
+}
+initializeUserCache();
+
+// --- NEW: Track Users with Cache + Firebase ---
+async function trackUser(phone) {
+  const formattedPhone = formatPhoneNumber(phone);
+  
+  // Check cache first (fast)
+  if (userCache.users.has(formattedPhone)) {
+    return false; // Existing user
+  }
+
+  // Not in cache - check Firebase (slow)
+  try {
+    const userRef = doc(firestore, "users_globalt", formattedPhone);
+    const userSnapshot = await getDoc(userRef);
+    
+    if (!userSnapshot.exists()) {
+      // New user - save to Firebase and cache
+      await setDoc(userRef, {
+        phone: formattedPhone,
+        firstInteraction: new Date().toISOString(),
+        lastInteraction: new Date().toISOString(),
+        messageCount: 1
+      });
+      userCache.users.add(formattedPhone);
+      userCache.totalCount++;
+      console.log(`New user tracked: ${formattedPhone}`);
+      return true;
+    } else {
+      // Existing user - update last interaction
+      await setDoc(userRef, {
+        lastInteraction: new Date().toISOString(),
+        messageCount: increment(1)
+      }, { merge: true });
+      userCache.users.add(formattedPhone); // Add to cache
+      return false;
+    }
+  } catch (error) {
+    console.error("Error tracking user:", error);
+    return false;
+  }
+}
+
+// --- NEW: API Endpoint to Get User Stats ---
+app.get("/user-stats", (req, res) => {
+  res.json({
+    totalUsers: userCache.totalCount,
+    cachedUsers: userCache.users.size,
+  });
+});
 // ------------------------------
 // Message Sending Functions
 // ------------------------------
@@ -597,6 +667,10 @@ app.post("/webhook", async (req, res) => {
     }
     const message = messages[0];
     const phone = message.from;
+
+    // Track user
+    await trackUser(phone); 
+    
     try {
       switch (message.type) {
         case "text":
