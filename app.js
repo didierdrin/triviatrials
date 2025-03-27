@@ -703,6 +703,19 @@ function capitalizeCategory(category) {
     .join(' ');
 }
 
+function formatCategoryTitle(category) {
+  // First capitalize as before
+  const capitalized = category
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+  
+  // Then truncate to 24 characters if needed
+  return capitalized.length > 24 
+    ? capitalized.substring(0, 21) + "..." 
+    : capitalized;
+}
+
 /**
  * Sends an interactive list message showing all categories.
  * When a user selects a category, your webhook should receive the selection and trigger sending catalog items.
@@ -714,7 +727,7 @@ async function sendCategoryList(phone, phoneNumberId, categories) {
     // Build list items from categories; each row's id is the category name.
     const rows = categories.map(cat => ({
       id: cat, // use the category name (or ID) as the row id
-      title: capitalizeCategory(cat),
+      title: formatCategoryTitle(cat),
       //description: `See our ${cat} products`
     }));
 
