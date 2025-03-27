@@ -1439,8 +1439,8 @@ async function sendCatalogChunk(phone, phoneNumberId, category, productRetailerI
         type: "product_list",
         header: { 
           type: "text",
-          text: formattedCategory.length > 60 
-            ? formattedCategory.substring(0, 57) + "..." 
+          text: formattedCategory.length > 24 
+            ? formattedCategory.substring(0, 21) + "..." 
             : formattedCategory
         },
         body: { text: "Our products:" },
