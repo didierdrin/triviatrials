@@ -922,10 +922,9 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
     case "nkundino":
       console.log("User requested the menu.");
       const categories = [
-        "all",
         "juice",
-        "margarine",
-        "dairy-products",
+        //"margarine",
+        //"dairy-products",
         "rice",
         "flour-and-composite-flour",
         "cooking-and-olive-oil",
@@ -933,10 +932,10 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
         "vegetables",
         "fruits",
         "mayonaise-ketchup-mustard",
-        "tooth-brush-and-mouth-wash",
+        //"tooth-brush-and-mouth-wash",
         "body-soaps",
         "lotion",
-        "shampoo-conditioner",
+        //"shampoo-conditioner",
       ];
       await sendCategoryList(phone, phoneNumberId, categories);
       break;
@@ -1187,10 +1186,9 @@ async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
           return;
         } else if (buttonId === "MORE") {
           const categories = [
-            "all",
             "juice",
-            "margarine",
-            "dairy-products",
+            //"margarine",
+           //"dairy-products",
             "rice",
             "flour-and-composite-flour",
             "cooking-and-olive-oil",
@@ -1198,10 +1196,10 @@ async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
             "vegetables",
             "fruits",
             "mayonaise-ketchup-mustard",
-            "tooth-brush-and-mouth-wash",
+            //"tooth-brush-and-mouth-wash",
             "body-soaps",
             "lotion",
-            "shampoo-conditioner",
+            //"shampoo-conditioner",
           ];
           await sendCategoryList(phone, phoneNumberId, categories);
           return;
