@@ -949,7 +949,7 @@ app.post("/api/save-order", async (req, res) => {
       served: false,
       accepted: false,
       vendor: vendorNumber,
-      tin: userContext.tin,
+      tin: "",
       deliveryLocation: deliveryLocation || null // Add location data
     };
 
