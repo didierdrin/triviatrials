@@ -159,22 +159,67 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
       console.log("User context reset.");
       break;
 
-    case "catalog":
+    case "haha":
       console.log("User requested the menu.");
       // Provide an array of categories available.
-      //const categories = ["elitra-plus-series", "weather-proof-of", "group-sockets", "accessory", "automation-group", "mechanical-group", "cable-trunking", "lighting-group"];
+      const categories = [
+        "juice",
+        //"margarine",
+        //"dairy-products",
+        "rice",
+        "flour-and-composite-flour",
+        "cooking-and-olive-oil",
+        "bread-and-bakery-items",
+        "vegetables",
+        "fruits",
+        "mayonaise-ketchup-mustard",
+        //"tooth-brush-and-mouth-wash",
+        "body-soaps",
+        "lotion",
+        //"shampoo-conditioner",
+      ];
       await sendCategoryList(phone, phoneNumberId, categories);
       break;
     case "products":
       console.log("User requested the menu.");
       // Provide an array of categories available.
-      const categories = ["elitra-plus-series", "weather-proof-of", "group-sockets", "accessory", "automation-group", "mechanical-group", "cable-trunking", "lighting-group"];
+      const categories = [
+        "juice",
+        //"margarine",
+        //"dairy-products",
+        "rice",
+        "flour-and-composite-flour",
+        "cooking-and-olive-oil",
+        "bread-and-bakery-items",
+        "vegetables",
+        "fruits",
+        "mayonaise-ketchup-mustard",
+        //"tooth-brush-and-mouth-wash",
+        "body-soaps",
+        "lotion",
+        //"shampoo-conditioner",
+      ];
       await sendCategoryList(phone, phoneNumberId, categories);
       break;
-    case "gio":
+    case "nkundino":
       console.log("User requested the menu.");
       // Provide an array of categories available.
-      //const categories = ["elitra-plus-series", "weather-proof-of", "group-sockets", "accessory", "automation-group", "mechanical-group", "cable-trunking", "lighting-group"];
+      const categories = [
+        "juice",
+        //"margarine",
+        //"dairy-products",
+        "rice",
+        "flour-and-composite-flour",
+        "cooking-and-olive-oil",
+        "bread-and-bakery-items",
+        "vegetables",
+        "fruits",
+        "mayonaise-ketchup-mustard",
+        //"tooth-brush-and-mouth-wash",
+        "body-soaps",
+        "lotion",
+        //"shampoo-conditioner",
+      ];
       await sendCategoryList(phone, phoneNumberId, categories);
       break;
 
@@ -516,7 +561,22 @@ async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
             return;
           } 
           else if (buttonId === 'MORE') {
-            const categories = ["elitra-plus-series", "weather-proof-of", "group-sockets", "accessory", "automation-group", "mechanical-group", "cable-trunking", "lighting-group"];
+            const categories = [
+        "juice",
+        //"margarine",
+        //"dairy-products",
+        "rice",
+        "flour-and-composite-flour",
+        "cooking-and-olive-oil",
+        "bread-and-bakery-items",
+        "vegetables",
+        "fruits",
+        "mayonaise-ketchup-mustard",
+        //"tooth-brush-and-mouth-wash",
+        "body-soaps",
+        "lotion",
+        //"shampoo-conditioner",
+      ];
             await sendCategoryList(phone, phoneNumberId, categories);
             return;
           }
