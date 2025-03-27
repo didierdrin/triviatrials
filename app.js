@@ -163,19 +163,19 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
       console.log("User requested the menu.");
       // Provide an array of categories available.
       const categories1 = [
-        "juice",
+        "Juice",
         //"margarine",
         //"dairy-products",
-        "rice",
-        "flour-and-composite-flour",
-        "cooking-and-olive-oil",
-        "bread-and-bakery-items",
-        "vegetables",
-        "fruits",
-        "mayonaise-ketchup-mustard",
+        "Rice",
+        "Flour and Composite flour",
+        "Cooking And Olive Oil",
+        "Bread And Bakery Items",
+        "Vegetables",
+        "Fruits",
+        "Mayonaise / Ketchup / Mustard",
         //"tooth-brush-and-mouth-wash",
-        "body-soaps",
-        "lotion",
+        "Body soaps",
+        "Lotion",
         //"shampoo-conditioner",
       ];
       await sendCategoryList(phone, phoneNumberId, categories1);
@@ -184,19 +184,19 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
       console.log("User requested the menu.");
       // Provide an array of categories available.
       const categories2 = [
-        "juice",
+        "Juice",
         //"margarine",
         //"dairy-products",
-        "rice",
-        "flour-and-composite-flour",
-        "cooking-and-olive-oil",
-        "bread-and-bakery-items",
-        "vegetables",
-        "fruits",
-        "mayonaise-ketchup-mustard",
+        "Rice",
+        "Flour and Composite flour",
+        "Cooking And Olive Oil",
+        "Bread And Bakery Items",
+        "Vegetables",
+        "Fruits",
+        "Mayonaise / Ketchup / Mustard",
         //"tooth-brush-and-mouth-wash",
-        "body-soaps",
-        "lotion",
+        "Body soaps",
+        "Lotion",
         //"shampoo-conditioner",
       ];
       await sendCategoryList(phone, phoneNumberId, categories2);
@@ -205,19 +205,19 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
       console.log("User requested the menu.");
       // Provide an array of categories available.
       const categories3 = [
-        "juice",
+        "Juice",
         //"margarine",
         //"dairy-products",
-        "rice",
-        "flour-and-composite-flour",
-        "cooking-and-olive-oil",
-        "bread-and-bakery-items",
-        "vegetables",
-        "fruits",
-        "mayonaise-ketchup-mustard",
+        "Rice",
+        "Flour and Composite flour",
+        "Cooking And Olive Oil",
+        "Bread And Bakery Items",
+        "Vegetables",
+        "Fruits",
+        "Mayonaise / Ketchup / Mustard",
         //"tooth-brush-and-mouth-wash",
-        "body-soaps",
-        "lotion",
+        "Body soaps",
+        "Lotion",
         //"shampoo-conditioner",
       ];
       await sendCategoryList(phone, phoneNumberId, categories3);
@@ -562,19 +562,19 @@ async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
           } 
           else if (buttonId === 'MORE') {
             const categories = [
-        "juice",
+        "Juice",
         //"margarine",
         //"dairy-products",
-        "rice",
-        "flour-and-composite-flour",
-        "cooking-and-olive-oil",
-        "bread-and-bakery-items",
-        "vegetables",
-        "fruits",
-        "mayonaise-ketchup-mustard",
+        "Rice",
+        "Flour and Composite flour",
+        "Cooking And Olive Oil",
+        "Bread And Bakery Items",
+        "Vegetables",
+        "Fruits",
+        "Mayonaise / Ketchup / Mustard",
         //"tooth-brush-and-mouth-wash",
-        "body-soaps",
-        "lotion",
+        "Body soaps",
+        "Lotion",
         //"shampoo-conditioner",
       ];
             await sendCategoryList(phone, phoneNumberId, categories);
@@ -846,9 +846,8 @@ function chunkArray(array, chunkSize) {
  */
 async function fetchProductRetailerIDs(category) {
   try {
-    const lowerCaseCategory = category.toLowerCase();
     const snapshot = await firestore.collection("nkundinoproducts")
-      .where("category", "==", lowerCaseCategory)
+      .where("category", "==", category)
       .get();
     if (snapshot.empty) {
       console.warn("No products found for category:", category);
