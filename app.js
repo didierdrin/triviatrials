@@ -162,7 +162,7 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
     case "haha":
       console.log("User requested the menu.");
       // Provide an array of categories available.
-      const categories = [
+      const categories1 = [
         "juice",
         //"margarine",
         //"dairy-products",
@@ -178,12 +178,12 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
         "lotion",
         //"shampoo-conditioner",
       ];
-      await sendCategoryList(phone, phoneNumberId, categories);
+      await sendCategoryList(phone, phoneNumberId, categories1);
       break;
     case "products":
       console.log("User requested the menu.");
       // Provide an array of categories available.
-      const categories = [
+      const categories2 = [
         "juice",
         //"margarine",
         //"dairy-products",
@@ -199,12 +199,12 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
         "lotion",
         //"shampoo-conditioner",
       ];
-      await sendCategoryList(phone, phoneNumberId, categories);
+      await sendCategoryList(phone, phoneNumberId, categories2);
       break;
     case "nkundino":
       console.log("User requested the menu.");
       // Provide an array of categories available.
-      const categories = [
+      const categories3 = [
         "juice",
         //"margarine",
         //"dairy-products",
@@ -220,7 +220,7 @@ const handleTextMessages = async (message, phone, phoneNumberId) => {
         "lotion",
         //"shampoo-conditioner",
       ];
-      await sendCategoryList(phone, phoneNumberId, categories);
+      await sendCategoryList(phone, phoneNumberId, categories3);
       break;
 
 
