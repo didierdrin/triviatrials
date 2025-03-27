@@ -1,35 +1,32 @@
-// App.js
+// app.js
+import admin from 'firebase-admin';
 import express from "express";
 import bodyParser from "body-parser";
 import axios from "axios";
 import cors from "cors";
-import { firestore } from "./firebaseConfig.js";
 import http from "http";
 import https from "https";
 import { v4 as uuidv4 } from "uuid";
-//import admin from 'firebase-admin';
+import { firestore } from "./firebaseConfig.js";
+import { generateQuestionsWithRetry } from './geminiQuestionGenerator.js';
+import { TOPICS, GAME_STATES, GameSession, gameManager } from './gameConfig.js';
 
-
-// Custom HTTP and HTTPS Agents
+// Custom HTTP and HTTPS Agents for robust connections
 const httpAgent = new http.Agent({
   keepAlive: true,
   maxSockets: 50,
   maxFreeSockets: 10,
 });
-
 const httpsAgent = new https.Agent({
   keepAlive: true,
   maxSockets: 50,
   maxFreeSockets: 10,
 });
-
-// Set longer timeout and more robust connection settings
 axios.defaults.timeout = 60000 * 3; // 3 minutes
 axios.defaults.httpAgent = httpAgent;
 axios.defaults.httpsAgent = httpsAgent;
 
 const app = express();
-
 app.use(
   cors({
     origin: [
@@ -40,634 +37,115 @@ app.use(
     credentials: true,
   })
 );
-
 app.use(bodyParser.json());
 
-// WhatsApp API Credentials
+// WhatsApp API credentials and version
 const ACCESS_TOKEN =
-  "EAAQYaGPHZBD0BOy9b3acDU6ywehiKJarISySO1XUSITOQwNgUeFqnBjuKtjPfPLJNxdsGlN08DCehUwpZCvQZCjQp9G63XeKWiZC86iYemL5E8Rb9hozG46ZBgQZBGHtSBZBUGXmvkZCZA5TZBPlCfheoeYYz5VvpDfyHbEjqvtAA9MXzi43n1lQB9lrF2ymUPCHyfHAZDZD"; //"EAAXxaUQfr3gBO5XDpAF6ZCFo1GIjruy4YgqiJMElgpaawXMCrXWBpSHGiB1aSf2hmkSzJhJLG3N14Uan8Axghepb2ftoMBcOkaKv9aOs5j8BUQZASbhrM95qFn6dPeYawQZAi2sFzdW6uJRW2HSL8CteNsAbYn3783HuuVeFAPfk7ETE1ZATvRSWZBpDS6UDyBQZDZD";
-//const PHONE_NUMBER_ID = 
+  "EAAQYaGPHZBD0BOy9b3acDU6ywehiKJarISySO1XUSITOQwNgUeFqnBjuKtjPfPLJNxdsGlN08DCehUwpZCvQZCjQp9G63XeKWiZC86iYemL5E8Rb9hozG46ZBgQZBGHtSBZBUGXmvkZCZA5TZBPlCfheoeYYz5VvpDfyHbEjqvtAA9MXzi43n1lQB9lrF2ymUPCHyfHAZDZD";
 const VERSION = "v22.0";
 
-// Global in-memory store for user contexts
-const userContexts = new Map();
-//userContexts.clear()
+// Global in-memory store for user contexts is managed by gameManager.userContexts
 
-// Add request logging middleware
+// Request logging middleware
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.path}`, req.body);
   next();
 });
 
 
-
-//// From here - readable modular functions.
-
-const handleMobileMoneySelection = async (buttonId, phone, phoneNumberId) => {
-  const userContext = userContexts.get(phone);
-  if (!userContext) {
-    console.log("No user context found for phone:", phone);
-    return;
-  }
-
-  const vendorNumber = "320297"; // Default to Rwanda
-  const currentCurrency = userContext.currency || "RWF"; // Default to Rwanda
-  let callToActionMessage = "";
-
-  if (currentCurrency === "RWF") {
-    // Payment messages for Rwanda
-    if (buttonId === "mtn_momo") {
-      callToActionMessage = `*Pay*\nPlease pay with\nMTN MoMo to ${vendorNumber}, name Nkundino Mini Supermarket`;
-    } else if (buttonId === "airtel_mobile_money") {
-      callToActionMessage = `*Pay*\nPlease pay with\nAirtel Money to ${vendorNumber}, name Nkundino Mini Supermarket`;
-    } else {
-      console.log("Unrecognized mobile money option for Rwanda:", buttonId);
-      return;
-    }
-  } else if (currentCurrency === "XOF") {
-    // Payment messages for Togo
-    if (buttonId === "mtn_momo") {
-      callToActionMessage = `Veuillez payer avec\nMTN Mobile Money au ${vendorNumber}, nom Nkundino Mini Supermarket\n____________________\nVotre commande est en cours de traitement et sera livrée sous peu.`;
-    } else if (buttonId === "airtel_mobile_money") {
-      callToActionMessage = `Veuillez payer avec\nAirtel Money au ${vendorNumber}, nom Nkundino Mini Supermarket\n____________________\nVotre commande est en cours de traitement et sera livrée sous peu.`;
-    } else {
-      console.log("Unrecognized mobile money option for Togo:", buttonId);
-      return;
-    }
-  } else {
-    console.log("Unsupported currency:", currentCurrency);
-    return;
-  }
-
-  const redirectPayload = {
-    type: "text",
-    text: { body: callToActionMessage },
-  };
-
-  await sendWhatsAppMessage(phone, redirectPayload, phoneNumberId);
+// --- NEW: In-Memory Cache for User Tracking ---
+const userCache = {
+  users: new Set(), // Stores phone numbers of known users
+  totalCount: 0,    // Total unique users (syncs with Firebase periodically)
 };
 
-
-
-const handleOrder = async (message, changes, displayPhoneNumber, phoneNumberId) => {
-  const order = message.order;
-  const orderId = message.id;
-  const customerInfo = {
-    phone: changes.value.contacts[0].wa_id,
-    receiver: displayPhoneNumber,
-  };
-  const items = order.product_items;
-  const totalAmount = items.reduce(
-    (total, item) => total + item.item_price * item.quantity,
-    0
-  );
-
-  // Save the order details into userContext
-  const userContext = userContexts.get(customerInfo.phone) || {};
-  userContext.order = {
-    orderId,
-    customerInfo,
-    items,
-    totalAmount,
-  };
-  userContexts.set(customerInfo.phone, userContext);
-
+// Initialize cache from Firebase on startup
+async function initializeUserCache() {
   try {
-
-    await sendOrderPrompt(customerInfo.phone, phoneNumberId);
-
-    console.log("Order saved successfully.");
-  } catch (error) {
-    console.error("Error saving order:", error.message);
-  }
-};
-
-
-
-
-const handleTextMessages = async (message, phone, phoneNumberId) => {
-  const messageText = message.text.body.trim().toLowerCase();
-
-  switch (messageText) {
-    case "adminclear":
-      userContexts.clear();
-      console.log("All user contexts reset.");
-      break;
-
-    case "clear":
-      userContexts.delete(phone);
-      console.log("User context reset.");
-      break;
-
-    case "haha":
-      console.log("User requested the menu.");
-      // Provide an array of categories available.
-      const categories1 = [
-        "Juice",
-        //"margarine",
-        //"dairy-products",
-        "Rice",
-        "Flour and Composite flour",
-        "Cooking And Olive Oil",
-        "Bread And Bakery Items",
-        "Vegetables",
-        "Fruits",
-        "Mayonaise / Ketchup / Mustard",
-        //"tooth-brush-and-mouth-wash",
-        "Body soaps",
-        "Lotion",
-        //"shampoo-conditioner",
-      ];
-      await sendCategoryList(phone, phoneNumberId, categories1);
-      break;
-    case "products":
-      console.log("User requested the menu.");
-      // Provide an array of categories available.
-      const categories2 = [
-        "Juice",
-        //"margarine",
-        //"dairy-products",
-        "Rice",
-        "Flour and Composite flour",
-        "Cooking And Olive Oil",
-        "Bread And Bakery Items",
-        "Vegetables",
-        "Fruits",
-        "Mayonaise / Ketchup / Mustard",
-        //"tooth-brush-and-mouth-wash",
-        "Body soaps",
-        "Lotion",
-        //"shampoo-conditioner",
-      ];
-      await sendCategoryList(phone, phoneNumberId, categories2);
-      break;
-    case "nkundino":
-      console.log("User requested the menu.");
-      // Provide an array of categories available.
-      const categories3 = [
-        "Juice",
-        //"margarine",
-        //"dairy-products",
-        "Rice",
-        "Flour and Composite flour",
-        "Cooking And Olive Oil",
-        "Bread And Bakery Items",
-        "Vegetables",
-        "Fruits",
-        "Mayonaise / Ketchup / Mustard",
-        //"tooth-brush-and-mouth-wash",
-        "Body soaps",
-        "Lotion",
-        //"shampoo-conditioner",
-      ];
-      await sendCategoryList(phone, phoneNumberId, categories3);
-      break;
-
-
-
-    default:
-      console.log(`Received unrecognized message: ${messageText}`);
-  }
-};
-
-
-
-
-
-
-const handleLocation = async (location, phone, phoneNumberId) => {
-  try {
-    const userContext = userContexts.get(phone);
-    if (!userContext || !userContext.order) {
-      console.log("No order found in user context.");
-      await sendWhatsAppMessage(
-        phone,
-        {
-          type: "text",
-          text: { body: "No active order found. Please place an order first." },
-        },
-        phoneNumberId
-      );
-      return;
-    }
-    const { orderIdx, customerInfo, items } = userContext.order;
-    const catalogProducts = await fetchFacebookCatalogProducts();
-    const enrichedItems = items.map((item) => {
-      const productDetails = catalogProducts.find(
-        (product) => product.retailer_id === item.product_retailer_id
-      );
-      return {
-        product: item.product_retailer_id,
-        quantity: item.quantity,
-        price: item.item_price,
-        currency: item.currency,
-        product_name: productDetails?.name || "Unknown Product",
-        product_image: productDetails?.image_url || "defaultImage.jpg",
-      };
+    const snapshot = await firestore.collection("users_globalt").get();
+    snapshot.forEach(doc => {
+      userCache.users.add(doc.id);
     });
-    const currencies = enrichedItems[0].currency;
-    let vendorNumber = "+250788767816";
-    let currentCurrency = "RWF";
-    let countryCodeText = "RW";
-    if (currencies === "XOF") {
-      vendorNumber = "+22892450808";
-      currentCurrency = "XOF";
-      countryCodeText = "TG";
-    }
-    function orderNumber() {
-      const randomNum = Math.floor(1 + Math.random() * (10000000 - 1));
-      const now = new Date();
-      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-      const formattedNum = randomNum.toString().padStart(6, "0");
-      return `ORD-${dateStr}-${formattedNum}`;
-    }
-    const orderidd = orderNumber();
-    const orderData = {
-      orderId: orderidd,
-      phone: customerInfo.phone,
-      currency: currentCurrency,
-      countryCode: countryCodeText,
-      amount: enrichedItems.reduce(
-        (total, item) => total + item.price * item.quantity,
-        0
-      ),
-      products: enrichedItems,
-      user: `+${customerInfo.phone}`,
-      date: new Date(),
-      paid: false,
-      rejected: false,
-      served: false,
-      accepted: false,
-      vendor: vendorNumber,
-      deliveryLocation: {
-        latitude: location.latitude,
-        longitude: location.longitude,
-      },
-    };
-    const docRef = await firestore
-      .collection("whatsappOrdersNkundino")
-      .add(orderData);
-    console.log("Order saved successfully to Firebase with ID:", docRef.id);
-
-    try {
-      const orderDoc = await docRef.get();
-      const orderData = orderDoc.data();
-      await axios.post(
-        `https://triviatrialsmessaging.onrender.com/api/send-order-confirmation`,
-        {
-          orderId: orderData.orderId,
-        }
-      );
-      console.log(
-        "Order confirmation endpoint triggered for order:",
-        orderData.orderId
-      );
-    } catch (error) {
-      console.error(
-        "Error triggering order confirmation endpoint:",
-        error
-      );
-    }
-
-    await sendWhatsAppMessage(
-      phone,
-      {
-        type: "interactive",
-        interactive: {
-          type: "button",
-          body: { text: "Proceed to payment" },
-          action: {
-            buttons: [
-              {
-                type: "reply",
-                reply: { id: "mtn_momo", title: "MTN MoMo" },
-              },
-            ],
-          },
-        },
-      },
-      phoneNumberId
-    );
-
-    userContext.stage = "EXPECTING_MTN_AIRTEL";
-    userContext.docReference = docRef;
-    userContext.vendorNumber = vendorNumber;
-    userContext.currency = currentCurrency;
-    userContexts.set(phone, userContext);
-    console.log("Location updated and order saved successfully.");
+    userCache.totalCount = snapshot.size;
+    console.log(`User cache initialized with ${userCache.totalCount} users.`);
   } catch (error) {
-    console.error("Error processing location and saving order:", error.message);
-    await sendWhatsAppMessage(
-      phone,
-      {
-        type: "text",
-        text: {
-          body: `Sorry, there was an error processing your location: ${error.message}. Please try again.`,
-        },
-      },
-      phoneNumberId
-    );
-  }
-};
-
-
-
-const processedMessages = new Set();
-
-
-
-// Webhook endpoint for receiving messages
-app.post("/webhook", async (req, res) => {
-  if (req.body.object === "whatsapp_business_account") {
-    const changes = req.body.entry?.[0]?.changes?.[0];
-    const messages = changes.value?.messages;
-    const phoneNumberId = changes.value?.metadata?.phone_number_id;
-
-    if (!changes || !messages || !phoneNumberId) {
-      return res.status(400).send("Invalid payload.");
-    }
-
-    // Only process the first message in the array
-    const message = messages[0];
-    const phone = message.from;
-    const uniqueMessageId = `${phoneNumberId}-${message.id}`;
-
-    if (processedMessages.has(uniqueMessageId)) {
-      console.log("Duplicate message ignored:", uniqueMessageId);
-      return res.sendStatus(200);
-    }
-
-    processedMessages.add(uniqueMessageId);
-
-
-    try {
-      if (phoneNumberId === "611707258686108") {
-        await handlePhoneNumber2Logic(message, phone, changes, phoneNumberId);
-      } else {
-        console.warn("Unknown phone number ID:", phoneNumberId);
-      }
-    } catch (err) {
-      console.error("Error processing message:", err.message);
-    } finally {
-      setTimeout(() => processedMessages.delete(uniqueMessageId), 300000);
-    }
-  }
-
-  res.sendStatus(200);
-});
-
-
-
-
-
-async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
-  switch (message.type) {
-    case "order":
-      await handleOrder(
-        message,
-        changes,
-        changes.value.metadata.display_phone_number,
-        phoneNumberId
-      );
-      break;
-
-    case "text":
-      await handleTextMessages(message, phone, phoneNumberId);
-
-      const userContext = userContexts.get(phone) || {};
-      if (userContext.stage === "EXPECTING_TIN") {
-        const tin = message.text.body.trim();
-        if (tin) {
-          console.log(`User ${phone} provided TIN: ${tin}`);
-          // Store the TIN or process it as required
-          // Update the context to expect the location
-          userContext.tin = tin;  // Save the TIN
-          userContext.stage = "EXPECTING_MTN_AIRTEL"; // Move to location stage
-          userContexts.set(phone, userContext);
-          const docReferenc = userContext.docReference;
-          // Later, when you want to update the same document
-          await docReferenc.update({
-            TIN: userContext.tin  // Replace 'userProvidedTIN' with the actual TIN value you receive from the customer
-
-          });
-
-          // Call the order confirmation endpoint
-          try {
-            // Get the orderId from the document reference
-      const orderDoc = await docReferenc.get();
-      const orderData = orderDoc.data();
-      
-            await axios.post(`https://triviatrialsmessaging.onrender.com/api/send-order-confirmation`, {
-              orderId: orderData.orderId
-            });
-            console.log("Order confirmation endpoint triggered for order:", orderData.orderId);
-          } catch (error) {
-            console.error("Error triggering order confirmation endpoint:", error);
-            // Don't throw the error as we don't want to affect the main order flow
-          }
-
-          await sendWhatsAppMessage(phone, {
-            type: "interactive",
-            interactive: {
-              type: "button",
-              body: {
-                text: "Proceed to payment",
-              },
-              action: {
-                buttons: [
-                  { type: "reply", reply: { id: "mtn_momo", title: "MTN MoMo" } },
-                  // {
-                  //   type: "reply",
-                  //   reply: { id: "airtel_mobile_money", title: "Airtel Money" },
-                  // },
-                ],
-              },
-            },
-          }, phoneNumberId);
-
-          return;  // Exit early after processing TIN
-        } else {
-          await sendWhatsAppMessage(phone, {
-            type: "text",
-            text: {
-              body: "Invalid TIN. Please provide a valid TIN.",
-            },
-          }, phoneNumberId);
-          return;
-        }
-      }
-      break;
-
-      case "interactive":
-        if (message.interactive.type === "button_reply") {
-          const buttonId = message.interactive.button_reply.id;
-      
-          // Handle order confirmation/cancellation buttons
-          if (buttonId.startsWith('confirm_') || buttonId.startsWith('cancel_')) {
-            const orderId = buttonId.split('_')[1];
-      
-            // Find the order in Firestore
-            const orderSnapshot = await firestore.collection("whatsappOrdersNkundino")
-              .where("orderId", "==", orderId)
-              .get();
-      
-            if (!orderSnapshot.empty) {
-              const docRef = orderSnapshot.docs[0].ref;
-              const orderData = orderSnapshot.docs[0].data();
-              const customerPhone = orderData.phone; // Get customer's phone number
-      
-              if (buttonId.startsWith('confirm_')) {
-                await docRef.update({
-                  paid: true
-                });
-                await sendWhatsAppMessage(customerPhone, {
-                  type: "text",
-                  text: {
-                    body: `*Thank you*\nWe received your payment successfully! Your order is being processed and will be delivered soon`
-                  }
-                }, phoneNumberId);
-              } else if (buttonId.startsWith('cancel_')) {
-                await docRef.update({
-                  rejected: true
-                });
-                await sendWhatsAppMessage(customerPhone, {
-                  type: "text",
-                  text: {
-                    body: `*Oops*\nOrder cancelled. Please contact us on +250788640995`
-                  }
-                }, phoneNumberId);
-              }
-            }
-            return;
-          }
-          
-          // Move CHECKOUT and MORE handlers outside the previous if block
-          else if (buttonId === 'CHECKOUT') {
-            // Send location request message
-            const locationRequestPayload = {
-              type: "interactive",
-              interactive: {
-                type: "location_request_message",
-                body: {
-                  text: "Share your delivery location",
-                },
-                action: {
-                  name: "send_location",
-                },
-              },
-            };
-      
-            await sendWhatsAppMessage(phone, locationRequestPayload, phoneNumberId);
-            return;
-          } 
-          else if (buttonId === 'MORE') {
-            const categories = [
-        "Juice",
-        //"margarine",
-        //"dairy-products",
-        "Rice",
-        "Flour and Composite flour",
-        "Cooking And Olive Oil",
-        "Bread And Bakery Items",
-        "Vegetables",
-        "Fruits",
-        "Mayonaise / Ketchup / Mustard",
-        //"tooth-brush-and-mouth-wash",
-        "Body soaps",
-        "Lotion",
-        //"shampoo-conditioner",
-      ];
-            await sendCategoryList(phone, phoneNumberId, categories);
-            return;
-          }
-      
-          // Handle MTN/Airtel selection
-          const userContext = userContexts.get(phone) || {};
-          if (userContext.stage === "EXPECTING_MTN_AIRTEL") {
-            await handleMobileMoneySelection(buttonId, phone, phoneNumberId);
-            console.log("Expecting MTN & AIRTEL button reply");
-            return;
-          }
-        } 
-        else if (message.interactive.type === "list_reply") {
-          const selectedCategory = message.interactive.list_reply.id;
-          console.log("User selected category:", selectedCategory);
-          await sendCatalogForCategory(phone, phoneNumberId, selectedCategory);
-        }
-        break;
-
-
-
-    case "location":
-      await handleLocation(message.location, phone, phoneNumberId);
-      break;
-
-    default:
-      console.log("Unrecognized message type:", message.type);
+    console.error("Error initializing user cache:", error);
   }
 }
+initializeUserCache();
 
-
-
-
-
-
-
-
-
-// Webhook verification
-app.get("/webhook", (req, res) => {
-  const VERIFY_TOKEN = "icupatoken31";
-  const mode = req.query["hub.mode"];
-  const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
-
-  if (mode && token) {
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      console.log("Webhook verified successfully!");
-      res.status(200).send(challenge);
-    } else {
-      res.status(403).send("Verification failed!");
-    }
+// --- NEW: Track Users with Cache + Firebase ---
+async function trackUser(phone) {
+  const formattedPhone = formatPhoneNumber(phone);
+  
+  // Check cache first (fast)
+  if (userCache.users.has(formattedPhone)) {
+    return false; // Existing user
   }
-});
 
-// Function to format phone number
-const formatPhoneNumber = (phone) => {
-  let cleaned = phone.replace(/[^\d+]/g, "");
-  if (!cleaned.startsWith("+")) {
-    cleaned = "+" + cleaned;
-  }
-  return cleaned;
-};
-
-// Function to test WhatsApp connection
-async function testWhatsAppConnection() {
+  // Not in cache - check Firebase (slow)
   try {
-    const response = await axios.get(
-      `https://graph.facebook.com/${VERSION}/me`,
-      {
-        headers: {
-          Authorization: `Bearer ${ACCESS_TOKEN}`,
-        },
-      }
-    );
-    console.log("WhatsApp connection test successful:", response.data);
-    return true;
+    const userRef = firestore.collection("users_globalt").doc(formattedPhone);
+    const userSnapshot = await userRef.get();
+    
+    if (!userSnapshot.exists) {
+      // New user - save to Firebase and cache
+      await userRef.set({
+        phone: formattedPhone,
+        firstInteraction: new Date().toISOString(),
+        lastInteraction: new Date().toISOString(),
+        messageCount: 1
+      });
+      userCache.users.add(formattedPhone);
+      userCache.totalCount++;
+      console.log(`New user tracked: ${formattedPhone}`);
+      return true;
+    } else {
+      // Existing user - update last interaction
+      await userRef.update({
+        lastInteraction: new Date().toISOString(),
+        messageCount: admin.firestore.FieldValue.increment(1)
+      });
+      userCache.users.add(formattedPhone); // Add to cache
+      return false;
+    }
   } catch (error) {
-    console.error(
-      "WhatsApp connection test failed:",
-      error.response?.data || error.message
-    );
+    console.error("Error tracking user:", error);
     return false;
   }
 }
 
-// Unified message sending function
+// --- NEW: API Endpoint to Get User Stats ---
+app.get("/user-stats", async (req, res) => {
+  try {
+    // Get the latest count from Firebase to ensure accuracy
+    const snapshot = await firestore.collection("users_globalt").get();
+    const actualCount = snapshot.size;
+    
+    // Update cache if needed
+    if (actualCount !== userCache.totalCount) {
+      userCache.totalCount = actualCount;
+      console.log(`Updated user count from Firebase: ${actualCount}`);
+    }
+    
+    res.json({
+      totalUsers: userCache.totalCount,
+      cachedUsers: userCache.users.size,
+    });
+  } catch (error) {
+    console.error("Error fetching user stats:", error);
+    res.status(500).json({ 
+      error: "Failed to fetch user stats",
+      cachedUsers: userCache.users.size 
+    });
+  }
+});
+// ------------------------------
+// Message Sending Functions
+// ------------------------------
 async function sendWhatsAppMessage(phone, messagePayload, phoneNumberId) {
   try {
     const url = `https://graph.facebook.com/${VERSION}/${phoneNumberId}/messages`;
-
     const response = await axios({
       method: "POST",
       url: url,
@@ -680,10 +158,8 @@ async function sendWhatsAppMessage(phone, messagePayload, phoneNumberId) {
         recipient_type: "individual",
         to: formatPhoneNumber(phone),
         ...messagePayload,
-
       },
     });
-
     console.log(`Message sent successfully from ${phoneNumberId}:`, response.data);
     return response.data;
   } catch (error) {
@@ -695,429 +171,586 @@ async function sendWhatsAppMessage(phone, messagePayload, phoneNumberId) {
   }
 }
 
-
-function capitalizeCategory(category) {
-  // Split by hyphen and capitalize each word
-  return category.split('-')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
-
-function formatCategoryTitle(category) {
-  // First capitalize as before
-  const capitalized = category
-    .split("-")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-  
-  // Then truncate to 24 characters if needed
-  return capitalized.length > 24 
-    ? capitalized.substring(0, 21) + "..." 
-    : capitalized;
-}
-
-/**
- * Sends an interactive list message showing all categories.
- * When a user selects a category, your webhook should receive the selection and trigger sending catalog items.
- */
-async function sendCategoryList(phone, phoneNumberId, categories) {
-  try {
-    const url = `https://graph.facebook.com/${VERSION}/${phoneNumberId}/messages`;
-
-    // Build list items from categories; each row's id is the category name.
-    const rows = categories.map(cat => ({
-      id: cat, // use the category name (or ID) as the row id
-      title: formatCategoryTitle(cat),
-      //description: `See our ${cat} products`
-    }));
-
-    const payload = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "interactive",
-      interactive: {
-        type: "list",
-        header: {
-          type: "text",
-          text: "Welcome to Nkundino Mini Supermarket App!"
-        },
-        body: {
-          text: "Please choose a category to view products:"
-        },
-        footer: {
-          text: "Get your groceries delivered"
-        },
-        action: {
-          button: "Select Category",
-          sections: [
-            {
-              title: "Categories",
-              rows: rows
-            }
-          ]
-        }
-      }
-    };
-
-    const response = await axios({
-      method: "POST",
-      url: url,
-      headers: {
-        Authorization: `Bearer ${ACCESS_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      data: payload
-    });
-
-    console.log("Category list sent successfully to:", phone);
-    return response.data;
-  } catch (error) {
-    console.error("Error sending category list:", error.response?.data || error.message);
-    throw error;
-  }
-}
-
-/**
- * Sends a catalog message for a single chunk of up to 30 products.
- * The catalog message uses interactive type "product_list".
- */
-async function sendCatalogChunk(phone, phoneNumberId, category, productRetailerIdsChunk) {
-  try {
-    const url = `https://graph.facebook.com/${VERSION}/${phoneNumberId}/messages`;
-
-    const payload = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "interactive",
-      interactive: {
-        type: "product_list",
-        header: {
-          type: "text",
-          text: category  // Display the category as the header
-        },
-        body: { text: "Our products:" },
-        action: {
-          catalog_id: "3886617101587200", // Replace with your actual catalog id
-          sections: [
-            {
-              title: category,
-              product_items: productRetailerIdsChunk.map(id => ({
-                product_retailer_id: id
-              }))
-            }
-          ]
-        }
-      }
-    };
-
-    const response = await axios({
-      method: "POST",
-      url: url,
-      headers: {
-        Authorization: `Bearer ${ACCESS_TOKEN}`,
-        "Content-Type": "application/json"
-      },
-      data: payload
-    });
-
-    console.log(`Catalog chunk sent successfully for category ${category}`);
-    return response.data;
-  } catch (error) {
-    console.error("Error sending catalog chunk:", error.response?.data || error.message);
-    throw error;
-  }
-}
-
-/**
- * Splits an array into chunks of a given size.
- */
-function chunkArray(array, chunkSize) {
-  const chunks = [];
-  for (let i = 0; i < array.length; i += chunkSize) {
-    chunks.push(array.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-/**
- * Given a category, fetches product retailer IDs from Firestore.
- * It queries the "nkundinoproducts" collection where "category" equals the provided category.
- * The returned array uses the document ID as the product retailer ID.
- */
-async function fetchProductRetailerIDs(category) {
-  try {
-    const snapshot = await firestore.collection("nkundinoproducts")
-      .where("category", "==", category)
-      .get();
-    if (snapshot.empty) {
-      console.warn("No products found for category:", category);
-      return [];
+async function sendDefaultMessage(phone, phoneNumberId) {
+  await sendWhatsAppMessage(phone, {
+    type: "text",
+    text: {
+      body: `*Start*\nSend 'Play' to start a new game or 'help' for instructions.`
     }
-    // Use the document id as product retailer id.
-    return snapshot.docs.map(doc => doc.id);
-  } catch (error) {
-    console.error("Error fetching products for category:", category, error.message);
-    return [];
-  }
+  }, phoneNumberId);
 }
 
-/**
- * For a given category, fetches product IDs from Firestore and sends catalog messages in chunks.
- */
-async function sendCatalogForCategory(phone, phoneNumberId, category) {
-  const productRetailerIds = await fetchProductRetailerIDs(category);
-  if (!productRetailerIds || productRetailerIds.length === 0) {
-    console.error("No product IDs fetched for category:", category);
-    return;
-  }
-  const chunks = chunkArray(productRetailerIds, 30);
-  for (const chunk of chunks) {
-    await sendCatalogChunk(phone, phoneNumberId, category, chunk);
-    // Optional delay to avoid rate limits
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-}
+async function sendWelcomeMessage(phone, phoneNumberId) {
+  // Update user context with a new stage
+  const userContext = gameManager.userContexts.get(phone) || {};
+  userContext.stage = "EXPECTING_WELCOME"; // Mark stage as welcome
+  gameManager.userContexts.set(phone, userContext);
 
-
-
-
-
-
-
-app.post("/api/save-order", async (req, res) => {
-  console.log("Incoming order data:", req.body);
-
-  const { orderId, customerInfo, items, deliveryLocation } = req.body;
-
-  try {
-    // Validate incoming data
-    if (!orderId || !customerInfo || !items || items.length === 0) {
-      return res.status(400).json({ message: "Invalid order data" });
-    }
-
-    // Fetch all catalog products to enrich order items
-    const catalogProducts = await fetchFacebookCatalogProducts();
-
-    // Enrich items with product details from Facebook Catalog
-    const enrichedItems = items.map((item) => {
-      const productDetails = catalogProducts.find(
-        (product) => product.retailer_id === item.product_retailer_id
-      );
-
-      return {
-        product: item.product_retailer_id,
-        quantity: item.quantity,
-        price: item.item_price,
-        currency: item.currency,
-        product_name: productDetails?.name || "Unknown Product",
-        product_image: productDetails?.image_url || "defaultImage.jpg",
-      };
-    });
-
-    // Determine the vendor number based on currency
-    const currencies = enrichedItems[0].currency; //enrichedItems.map((item) => item.currency);
-    let vendorNumber = "+250788767816"; // Default to Rwandan number
-    let currentCurrency = "RWF";
-    // currencies.includes("XOF")
-    if (currencies == "XOF") {
-      vendorNumber = "+22892450808"; // Togo number
-      currentCurrency = "XOF"; // Togo currency
-    }
-
-    let currentOrder = 0;
-
-
-
-    function orderNumber() {
-
-
-      const randomNum = uuidv4().split('-')[0];
-      currentOrder += 1;
-      const now = new Date();
-      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
-      //return `ORD-${dateStr}-${randomNum.toString()}`;
-      // Format the random number to always be 6 digits
-      const formattedNum = randomNum.slice(0, 6).padStart(6, "0");
-
-      return `ORD-${dateStr}-${formattedNum}`;
-      //randomNum.toString().padStart(6, "0")}
-    }
-
-    const orderidd = orderNumber();
-
-    // Prepare Firestore document data
-    const orderData = {
-      orderId: orderidd,
-      phone: customerInfo.phone,
-      currency: currentCurrency,
-      amount: enrichedItems.reduce(
-        (total, item) => total + item.price * item.quantity,
-        0
-      ),
-      products: enrichedItems,
-      user: `+${customerInfo.phone}`,
-      date: new Date(),
-      paid: false,
-      rejected: false,
-      served: false,
-      accepted: false,
-      vendor: vendorNumber,
-      tin: "",
-      deliveryLocation: deliveryLocation || null // Add location data
-    };
-
-    // Save order to Firestore
-    const docRef = await firestore.collection("whatsappOrdersNkundino").add(orderData);
-
-    console.log("Order saved successfully with ID:", docRef.id);
-
-    res
-      .status(200)
-      .json({ message: "Order saved successfully", order: orderData });
-  } catch (error) {
-    console.error("Error saving order:", error.message);
-    res
-      .status(500)
-      .json({ message: "An error occurred while saving the order" });
-  }
-});
-
-
-async function fetchFacebookCatalogProducts() {
-  const url = `https://graph.facebook.com/v12.0/3886617101587200/products?fields=id,name,description,price,image_url,retailer_id`;
-  let products = [];
-  let nextPage = url;
-
-  try {
-    while (nextPage) {
-      const response = await axios.get(nextPage, {
-        headers: {
-          Authorization: `Bearer ${ACCESS_TOKEN}`,
-        },
-      });
-
-      // Append fetched products to the list
-      products = products.concat(response.data.data);
-
-      // Update nextPage with the next page link
-      nextPage = response.data.paging?.next || null;
-    }
-
-    console.log("Fetched products with images:", products);
-    return products;
-  } catch (error) {
-    console.error(
-      "Error fetching catalog products:",
-      error.response?.data || error.message
-    );
-    throw error;
-  }
-}
-
-async function sendOrderPrompt(phone, phoneNumberId) {
-  const userContext = userContexts.get(phone) || {};
   const payload = {
     type: "interactive",
     interactive: {
-      type: "button",
-      body: { text: `*Your order’s looking good!*\nWant to add anything else before checkout?` },
+      type: "list",
+      header: {
+        type: "text",
+        text: "🎮 Welcome to Trivia trials!"
+      },
+      body: {
+        text: "Test your knowledge!"
+      },
+      footer: {
+        text: "Select a topic"
+      },
       action: {
-        buttons: [
-          { type: "reply", reply: { id: "MORE", title: "More" } },
-          { type: "reply", reply: { id: "CHECKOUT", title: "Checkout" } }
+        button: "View Topics",
+        sections: [
+          {
+            title: "Trivia Topics",
+            rows: [
+              {
+                id: "topic_science",
+                title: "Science",
+                description: "Explore scientific wonders"
+              },
+              {
+                id: "topic_history",
+                title: "History",
+                description: "Dive into the past"
+              },
+              {
+                id: "topic_geography",
+                title: "Geography",
+                description: "Discover world facts"
+              },
+              {
+                id: "topic_entertainment",
+                title: "Entertainment",
+                description: "Test pop culture knowledge"
+              },
+              {
+                id: "topic_sports",
+                title: "Sports",
+                description: "Score with sports trivia"
+              },
+              {
+                id: "topic_technology",
+                title: "Technology",
+                description: "Innovate with tech trivia"
+              }
+            ]
+          }
         ]
       }
     }
   };
 
   await sendWhatsAppMessage(phone, payload, phoneNumberId);
-  userContext.stage = "SEND_TIN_MESSAGE";
-  userContexts.set(phone, userContext);
 }
 
-// Add this new endpoint for sending order confirmation message
-app.post("/api/send-order-confirmation", async (req, res) => {
+
+async function sendHelpMessage(phone, phoneNumberId) {
+  const helpText = `🎮 *How to Play*
+
+1️⃣ Type 'play' to begin a game.
+2️⃣ Choose your preferred topic.
+3️⃣ Select game mode (Single Player or Multiplayer(Coming soon)).
+4️⃣ Choose number of questions (5-20).
+5️⃣ Answer questions by selecting options.
+
+*Commands:*
+• 'play' - Start new game
+• 'help' - Show this help message
+• 'quit' - Exit current game
+
+*Game Modes:*
+• Single Player - Play solo
+• Multiplayer - Challenge a friend`;
+
+  await sendWhatsAppMessage(phone, {
+    type: "text",
+    text: { body: helpText }
+  }, phoneNumberId);
+}
+
+function formatPhoneNumber(phone) {
+  let cleaned = phone.replace(/[^\d+]/g, "");
+  if (!cleaned.startsWith("+")) {
+    cleaned = "+" + cleaned;
+  }
+  return cleaned;
+}
+
+// ------------------------------
+// Game Functions
+// ------------------------------
+
+async function handleQuestionCountInput(input, phone, phoneNumberId) {
+  const count = parseInt(input);
+  if (isNaN(count) || count < 5 || count > 20) {
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: {
+        body: "Please enter a number between 5 and 20 for the number of questions."
+      }
+    }, phoneNumberId);
+    return;
+  }
+  const userContext = gameManager.userContexts.get(phone);
+  userContext.questionCount = count;
+  userContext.state = GAME_STATES.IN_GAME;
+  gameManager.userContexts.set(phone, userContext);
+  await startGame(phone, phoneNumberId, userContext.topic, count);
+}
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+async function startGame(phone, phoneNumberId, topic, questionCount) {
   try {
-    const { orderId } = req.body;
+    // Generate questions using Gemini
+    const questions = await generateQuestionsWithRetry(topic, questionCount);
+    const userContext = gameManager.userContexts.get(phone);
+
+    // Shuffle the questions so they appear in a random order each game
+    const shuffledQuestions = shuffleArray(questions);
     
-    if (!orderId) {
-      return res.status(400).json({ message: "Order ID is required" });
-    }
-
-    // Get the active admin phone number from Firebase
-    const adminPhoneSnapshot = await firestore
-      .collection("adminPhone")
-      .where("isActive", "==", true)
-      .limit(1)
-      .get();
-
-    if (adminPhoneSnapshot.empty) {
-      return res.status(400).json({ message: "No active admin phone number found" });
-    }
-
-    const ADMIN_PHONE = adminPhoneSnapshot.docs[0].data().number;
-
-    // Get the order details
-    const orderSnapshot = await firestore
-      .collection("whatsappOrdersNkundino")
-      .where("orderId", "==", orderId)
-      .get();
-
-    if (orderSnapshot.empty) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    const orderData = orderSnapshot.docs[0].data();
-    const docRef = orderSnapshot.docs[0].ref;
+    userContext.questions = shuffledQuestions;
+    userContext.currentQuestionIndex = 0;
+    userContext.score = 0;
+    // For single-player, no gameId is set
+    gameManager.userContexts.set(phone, userContext);
     
-    const orderDetails = orderData.products
-      .map(
-        (product) =>
-          `${product.product_name} x${product.quantity} - ${
-            product.price * product.quantity
-          } ${product.currency}`
-      )
-      .join("\n");
-
-    const messageBody = `New Order Received!\n\nOrder ID: ${orderData.orderId}\nCustomer Phone: ${orderData.phone}\nTotal Amount: ${orderData.amount} ${orderData.currency}\n\nItems:\n${orderDetails}\n\nPlease confirm or cancel this order.`;
-
-    const messagePayload = {
-      type: "interactive",
-      interactive: {
-        type: "button",
-        body: { text: messageBody },
-        action: {
-          buttons: [
-            {
-              type: "reply",
-              reply: { id: `confirm_${orderId}`, title: "Confirm" },
-            },
-            {
-              type: "reply",
-              reply: { id: `cancel_${orderId}`, title: "Cancel" },
-            },
-          ],
-        },
-      },
-    };
-
-    await sendWhatsAppMessage(ADMIN_PHONE, messagePayload, "611707258686108");
-    
-    res.status(200).json({
-      message: "Order confirmation message sent successfully to admin",
-      adminPhone: ADMIN_PHONE // Optional: return the phone number used
-    });
-    
+    // Send the first question from the shuffled set
+    await sendQuestion(phone, phoneNumberId, shuffledQuestions[0], 1, shuffledQuestions.length);
   } catch (error) {
-    console.error("Error sending order confirmation:", error);
-    res.status(500).json({ 
-      message: "Failed to send order confirmation message",
-      error: error.message 
-    });
+    console.error('Error starting game:', error);
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: {
+        body: "Sorry, we encountered an error starting the game. Please try again."
+      }
+    }, phoneNumberId);
+  }
+}
+
+async function sendQuestion(phone, phoneNumberId, questionData, currentNumber, totalQuestions) {
+  const optionLetters = ['A', 'B', 'C'];
+  const questionText = `*Question* ${currentNumber}/${totalQuestions}:\n\n${questionData.question}\n\n` +
+    questionData.options.map((option, index) => `${optionLetters[index]}) ${option}`).join('\n');
+
+  await sendWhatsAppMessage(phone, {
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: questionText },
+      action: {
+        buttons: optionLetters.slice(0, questionData.options.length).map(letter => ({
+          type: "reply",
+          reply: { id: `answer_${letter.toLowerCase()}`, title: letter }
+        }))
+      }
+    }
+  }, phoneNumberId);
+}
+
+async function handleGameAnswer(answer, phone, phoneNumberId) {
+  const userContext = gameManager.userContexts.get(phone);
+  if (!userContext || userContext.state !== GAME_STATES.IN_GAME) {
+    await sendDefaultMessage(phone, phoneNumberId);
+    return;
+  }
+
+  // Check if multiplayer (gameId exists in userContext)
+  if (userContext.gameId) {
+    // Multiplayer mode
+    const session = gameManager.getSession(userContext.gameId);
+    if (!session) {
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: "Game session not found." }
+      }, phoneNumberId);
+      return;
+    }
+    if (session.currentTurn && session.currentTurn !== phone) {
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: "It's not your turn yet." }
+      }, phoneNumberId);
+      return;
+    }
+    const currentQuestion = session.questions[session.currentQuestionIndex];
+    const mapping = { a: 0, b: 1, c: 2 };
+    const answerLetter = answer.trim().toLowerCase();
+    if (!(answerLetter in mapping)) {
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: "Please select a valid answer option (A, B, or C)." }
+      }, phoneNumberId);
+      return;
+    }
+    const selectedIndex = mapping[answerLetter];
+    const isCorrect = selectedIndex === currentQuestion.correctAnswerIndex;
+    let pointsAwarded = 0;
+    if (isCorrect) {
+      if (currentQuestion.difficulty === "easy") pointsAwarded = 10;
+      else if (currentQuestion.difficulty === "medium") pointsAwarded = 20;
+      else pointsAwarded = 30;
+      session.scores[phone] = (session.scores[phone] || 0) + pointsAwarded;
+    }
+    let feedbackMessage = isCorrect
+      ? `Correct!\nYou've earned ${pointsAwarded} points.`
+      : `Incorrect!\nThe correct answer was ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}. ${currentQuestion.explanation}`;
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: { body: feedbackMessage }
+    }, phoneNumberId);
+
+    // For turn-based multiplayer, alternate turns
+    if (session.hostPlayer === phone) {
+      session.currentTurn = session.guestPlayer;
+    } else {
+      session.currentTurn = session.hostPlayer;
+      // Once both have answered, advance the question index
+      session.currentQuestionIndex++;
+    }
+    if (session.currentQuestionIndex >= session.questions.length) {
+      session.status = "completed";
+      const finalMessage = `Game Over!\nFinal Scores:\nHost: ${session.scores[session.hostPlayer]}\nGuest: ${session.scores[session.guestPlayer]}\nType 'play' to start a new game.`;
+      await sendWhatsAppMessage(session.hostPlayer, { type: "text", text: { body: finalMessage } }, phoneNumberId);
+      await sendWhatsAppMessage(session.guestPlayer, { type: "text", text: { body: finalMessage } }, phoneNumberId);
+      let hostContext = gameManager.userContexts.get(session.hostPlayer);
+      let guestContext = gameManager.userContexts.get(session.guestPlayer);
+      if (hostContext) { hostContext.state = GAME_STATES.GAME_OVER; delete hostContext.gameId; }
+      if (guestContext) { guestContext.state = GAME_STATES.GAME_OVER; delete guestContext.gameId; }
+      gameManager.userContexts.set(session.hostPlayer, hostContext);
+      gameManager.userContexts.set(session.guestPlayer, guestContext);
+      return;
+    }
+    // Notify players: if it’s the current player’s turn, send the next question; otherwise, show a waiting message.
+    if (session.currentTurn === phone) {
+      await sendQuestion(phone, phoneNumberId, session.questions[session.currentQuestionIndex], session.currentQuestionIndex + 1, session.questions.length);
+    } else {
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: "Waiting for your opponent to answer..." }
+      }, phoneNumberId);
+    }
+    gameManager.sessions.set(userContext.gameId, session);
+  } else {
+    // Single Player mode
+    const currentQuestion = userContext.questions[userContext.currentQuestionIndex];
+    const mapping = { a: 0, b: 1, c: 2 };
+    const answerLetter = answer.trim().toLowerCase();
+    if (!(answerLetter in mapping)) {
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: "Please select a valid answer option (A, B, or C)." }
+      }, phoneNumberId);
+      return;
+    }
+    const selectedIndex = mapping[answerLetter];
+    const isCorrect = selectedIndex === currentQuestion.correctAnswerIndex;
+    let pointsAwarded = 0;
+    if (isCorrect) {
+      if (currentQuestion.difficulty === "easy") pointsAwarded = 10;
+      else if (currentQuestion.difficulty === "medium") pointsAwarded = 20;
+      else pointsAwarded = 30;
+      userContext.score += pointsAwarded;
+    }
+    let feedbackMessage = isCorrect
+      ? `Correct!\nYou've earned ${pointsAwarded} points.`
+      : `Incorrect!\nThe correct answer was ${String.fromCharCode(65 + currentQuestion.correctAnswerIndex)}. ${currentQuestion.explanation}`;
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: { body: feedbackMessage }
+    }, phoneNumberId);
+
+    userContext.currentQuestionIndex++;
+    if (userContext.currentQuestionIndex < userContext.questions.length) {
+      setTimeout(async () => {
+        await sendQuestion(phone, phoneNumberId, userContext.questions[userContext.currentQuestionIndex], userContext.currentQuestionIndex + 1, userContext.questions.length);
+      }, 1000);
+    } else {
+      userContext.state = GAME_STATES.GAME_OVER;
+
+      // Calculate the total possible score for the round
+  const totalPossible = userContext.questions.reduce((total, question) => {
+    if (question.difficulty === "easy") return total + 10;
+    if (question.difficulty === "medium") return total + 20;
+    if (question.difficulty === "hard") return total + 30;
+    return total;
+  }, 0);
+      
+      let finalMessage = `Game Over! Your final score is ${userContext.score}/${totalPossible}\n`;
+      if (userContext.score >= userContext.questions.length * 20) {
+        finalMessage += "🏆 Achievement Unlocked: Trivia Master!\n";
+      }
+      finalMessage += "Type 'play' to start a new game.";
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: finalMessage }
+      }, phoneNumberId);
+    }
+    gameManager.userContexts.set(phone, userContext);
+  }
+}
+
+// ------------------------------
+// Handling Incoming WhatsApp Messages
+// ------------------------------
+async function handleTextMessages(message, phone, phoneNumberId) {
+  // Check for join command for multiplayer
+  if (message.text.body.toLowerCase().startsWith("join ")) {
+    const parts = message.text.body.split(" ");
+    if (parts.length >= 2) {
+      const gameId = parts[1];
+      const session = gameManager.getSession(gameId);
+      if (!session) {
+        await sendWhatsAppMessage(phone, {
+          type: "text",
+          text: { body: "Game session not found. Please check the link and try again." }
+        }, phoneNumberId);
+        return;
+      }
+      if (session.guestPlayer) {
+        await sendWhatsAppMessage(phone, {
+          type: "text",
+          text: { body: "This game session already has a guest player." }
+        }, phoneNumberId);
+        return;
+      }
+      session.guestPlayer = phone;
+      session.scores[phone] = 0;
+      // Store gameId in guest context
+      const guestContext = {
+        state: GAME_STATES.IN_GAME,
+        score: 0,
+        questions: session.questions,
+        currentQuestionIndex: 0,
+        topic: session.topic,
+        gameId: session.gameId
+      };
+      gameManager.userContexts.set(phone, guestContext);
+      // For host, ensure gameId is stored
+      const hostContext = gameManager.userContexts.get(session.hostPlayer);
+      if (hostContext) {
+        hostContext.gameId = session.gameId;
+        gameManager.userContexts.set(session.hostPlayer, hostContext);
+      }
+      // Set initial turn (host starts)
+      session.currentTurn = session.hostPlayer;
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: "You've joined the game! Wait for your turn." }
+      }, phoneNumberId);
+      await sendWhatsAppMessage(session.hostPlayer, {
+        type: "text",
+        text: { body: "Your opponent has joined! It's your turn." }
+      }, phoneNumberId);
+      gameManager.sessions.set(session.gameId, session);
+      // Send first question to host if not already sent
+      await sendQuestion(session.hostPlayer, phoneNumberId, session.questions[0], 1, session.questions.length);
+      return;
+    }
+  }
+
+  // Retrieve user context (default to IDLE)
+  const userContext = gameManager.userContexts.get(phone) || { state: GAME_STATES.IDLE };
+
+  if (message.text.body.toLowerCase() === 'play') {
+    userContext.state = GAME_STATES.TOPIC_SELECTION;
+    gameManager.userContexts.set(phone, userContext);
+    await sendWelcomeMessage(phone, phoneNumberId);
+    return;
+  }
+  if (message.text.body.toLowerCase() === 'help') {
+    await sendHelpMessage(phone, phoneNumberId);
+    return;
+  }
+  switch (userContext.state) {
+    case GAME_STATES.QUESTION_COUNT:
+      await handleQuestionCountInput(message.text.body, phone, phoneNumberId);
+      break;
+    case GAME_STATES.IN_GAME:
+      await handleGameAnswer(message.text.body, phone, phoneNumberId);
+      break;
+    default:
+      await sendDefaultMessage(phone, phoneNumberId);
+  }
+}
+
+async function handleInteractiveMessage(message, phone, phoneNumberId) {
+  const interactive = message.interactive;
+  // Check if the reply came from a list or button
+  const replyId = interactive.list_reply
+    ? interactive.list_reply.id
+    : interactive.button_reply
+      ? interactive.button_reply.id
+      : null;
+  
+  if (!replyId) {
+    console.error("No valid interactive reply found.");
+    return;
+  }
+  
+  if (replyId.startsWith('topic_')) {
+    const topic = replyId.replace('topic_', '');
+    await handleTopicSelection(topic, phone, phoneNumberId);
+  } else if (replyId === 'single_player') {
+    await startSinglePlayerGame(phone, phoneNumberId);
+  } else if (replyId === 'multiplayer') {
+    await startMultiplayerGame(phone, phoneNumberId);
+  } else if (replyId.startsWith('answer_')) {
+    const answer = replyId.replace('answer_', '');
+    await handleGameAnswer(answer, phone, phoneNumberId);
+  }
+}
+
+
+async function handleTopicSelection(topic, phone, phoneNumberId) {
+  await sendWhatsAppMessage(phone, {
+    type: "interactive",
+    interactive: {
+      type: "button",
+      body: { text: `*Game mode*\nChoose an option\n(Multiplayer coming soon)` },
+      action: {
+        buttons: [
+          { type: "reply", reply: { id: "single_player", title: "Single Player" } }
+          // { type: "reply", reply: { id: "multiplayer", title: "Multiplayer" } }
+        ]
+      }
+    }
+  }, phoneNumberId);
+  const userContext = gameManager.userContexts.get(phone) || {};
+  userContext.topic = topic;
+  userContext.state = GAME_STATES.QUESTION_COUNT;
+  gameManager.userContexts.set(phone, userContext);
+}
+
+async function startSinglePlayerGame(phone, phoneNumberId) {
+  await sendWhatsAppMessage(phone, {
+    type: "text",
+    text: { body: "How many questions would you like? (Enter a number between 5-20)" }
+  }, phoneNumberId);
+}
+
+async function startMultiplayerGame(phone, phoneNumberId) {
+  const gameId = gameManager.createSession(phone);
+  // Save session data in Firebase for persistence
+  await firestore.collection('games').doc(gameId).set({
+    hostPlayer: phone,
+    status: 'waiting',
+    topic: gameManager.userContexts.get(phone).topic,
+    createdAt: new Date()
+  });
+  // Generate questions immediately for both players
+  const topic = gameManager.userContexts.get(phone).topic;
+  const questionCount = 5; // Default count for multiplayer; you can change this or prompt the host
+  const questions = await generateQuestionsWithRetry(topic, questionCount);
+  const session = gameManager.getSession(gameId);
+  session.questions = questions;
+  session.currentQuestionIndex = 0;
+  session.scores[phone] = 0;
+  // Save gameId in host context
+  const hostContext = gameManager.userContexts.get(phone) || {};
+  hostContext.state = GAME_STATES.IN_GAME;
+  hostContext.score = 0;
+  hostContext.questions = questions;
+  hostContext.currentQuestionIndex = 0;
+  hostContext.topic = topic;
+  hostContext.gameId = gameId;
+  gameManager.userContexts.set(phone, hostContext);
+
+  const gameLink = `https://triviatrialsmessaging.onrender.com/join/${gameId}`;
+  await sendWhatsAppMessage(phone, {
+    type: "text",
+    text: { body: `Share this link with your opponent to join the game: ${gameLink}` }
+  }, phoneNumberId);
+}
+
+// ------------------------------
+// Webhook Routes
+// ------------------------------
+app.post("/webhook", async (req, res) => {
+  if (req.body.object === "whatsapp_business_account") {
+    const changes = req.body.entry?.[0]?.changes?.[0];
+    const messages = changes.value?.messages;
+    const phoneNumberId = changes.value?.metadata?.phone_number_id;
+    if (!changes || !messages || !phoneNumberId) {
+      return res.status(400).send("Invalid payload.");
+    }
+    const message = messages[0];
+    const phone = message.from;
+
+    // Track user
+    await trackUser(phone); 
+    
+    try {
+      switch (message.type) {
+        case "text":
+          await handleTextMessages(message, phone, phoneNumberId);
+          break;
+        case "interactive":
+          await handleInteractiveMessage(message, phone, phoneNumberId);
+          break;
+      }
+    } catch (err) {
+      console.error("Error processing message:", err);
+    }
+  }
+  res.sendStatus(200);
+});
+
+// Endpoint for WhatsApp webhook verification
+app.get("/webhook", (req, res) => {
+  const VERIFY_TOKEN = "icupatoken31";
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+  if (mode && token) {
+    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+      console.log("Webhook verified successfully!");
+      res.status(200).send(challenge);
+    } else {
+      res.status(403).send("Verification failed!");
+    }
   }
 });
 
-// Start the server
+// Route for opponents joining the multiplayer game via link
+app.get("/join/:gameId", async (req, res) => {
+  const gameId = req.params.gameId;
+  const session = gameManager.getSession(gameId);
+  if (!session) {
+    res.status(404).send("Game session not found.");
+    return;
+  }
+  res.send(`
+    <h1>Join Game: ${gameId}</h1>
+    <p>To join this game, send the following message from your WhatsApp:</p>
+    <code>join ${gameId}</code>
+  `);
+});
+
+// Test WhatsApp connection
+async function testWhatsAppConnection() {
+  try {
+    const response = await axios.get(
+      `https://graph.facebook.com/${VERSION}/me`,
+      { headers: { Authorization: `Bearer ${ACCESS_TOKEN}` } }
+    );
+    console.log("WhatsApp connection test successful:", response.data);
+    return true;
+  } catch (error) {
+    console.error("WhatsApp connection test failed:", error.response?.data || error.message);
+    return false;
+  }
+}
+
 const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
