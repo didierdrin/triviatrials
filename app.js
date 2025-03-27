@@ -1422,13 +1422,14 @@ async function sendCategoryList(phone, phoneNumberId, categories) {
   }
 }
 
-async function sendCatalogChunk(
-  phone,
-  phoneNumberId,
-  category,
-  productRetailerIdsChunk
-) {
+async function sendCatalogChunk(phone, phoneNumberId, category, productRetailerIdsChunk) {
   try {
+    // Format category name for display
+    const formattedCategory = formatCategoryTitle(category);
+    const shortCategory = formattedCategory.length > 24 
+      ? formattedCategory.substring(0, 21) + "..."
+      : formattedCategory;
+
     const url = `https://graph.facebook.com/${VERSION}/${phoneNumberId}/messages`;
     const payload = {
       messaging_product: "whatsapp",
@@ -1436,21 +1437,27 @@ async function sendCatalogChunk(
       type: "interactive",
       interactive: {
         type: "product_list",
-        header: { type: "text", text: category },
+        header: { 
+          type: "text",
+          text: formattedCategory.length > 60 
+            ? formattedCategory.substring(0, 57) + "..." 
+            : formattedCategory
+        },
         body: { text: "Our products:" },
         action: {
           catalog_id: "3886617101587200",
-          sections: [
-            {
-              title: category,
-              product_items: productRetailerIdsChunk.map((id) => ({
-                product_retailer_id: id,
-              })),
-            },
-          ],
+          sections: [{
+            title: shortCategory,
+            product_items: productRetailerIdsChunk.map((id) => ({
+              product_retailer_id: id,
+            })),
+          }],
         },
       },
     };
+
+    console.log("Sending catalog payload:", JSON.stringify(payload, null, 2));
+    
     const response = await axios({
       method: "POST",
       url,
@@ -1460,7 +1467,8 @@ async function sendCatalogChunk(
       },
       data: payload,
     });
-    console.log(`Catalog chunk sent successfully for category ${category}`);
+    
+    console.log(`Catalog chunk sent successfully for category ${shortCategory}`);
     return response.data;
   } catch (error) {
     console.error(
