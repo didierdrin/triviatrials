@@ -1588,7 +1588,7 @@ app.post("/webhook", async (req, res) => {
     const phone = message.from;
 
     // Use Trivia logic if phoneNumberId is not Giomessaging's; otherwise use Giomessaging logic.
-    if (phoneNumberId !== "611707258686108") {
+    if (true) {
       await trackUser(phone);
       try {
         switch (message.type) {
