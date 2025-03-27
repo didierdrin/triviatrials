@@ -462,7 +462,7 @@ async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
             const orderId = buttonId.split('_')[1];
       
             // Find the order in Firestore
-            const orderSnapshot = await firestore.collection("whatsappOrdersGio")
+            const orderSnapshot = await firestore.collection("whatsappOrdersNkundino")
               .where("orderId", "==", orderId)
               .get();
       
@@ -536,90 +536,6 @@ async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
         }
         break;
 
-    // case "interactive":
-    //   if (message.interactive.type === "button_reply") {
-    //     const buttonId = message.interactive.button_reply.id;
-
-    //     // Handle order confirmation/cancellation buttons
-    //     if (buttonId.startsWith('confirm_') || buttonId.startsWith('cancel_')) {
-    //       const orderId = buttonId.split('_')[1];
-
-    //       // Find the order in Firestore
-    //       const orderSnapshot = await firestore.collection("whatsappOrdersGio")
-    //         .where("orderId", "==", orderId)
-    //         .get();
-
-    //       if (!orderSnapshot.empty) {
-    //         const docRef = orderSnapshot.docs[0].ref;
-
-    //         if (buttonId.startsWith('confirm_')) {
-    //           // Update paid status
-    //           await docRef.update({
-    //             paid: true
-    //           });
-    //           await sendWhatsAppMessage(phone, {
-    //             type: "text",
-    //             text: {
-    //               body: `*Thank you*\nReceived your payment successfully! Your order is being processed and will be delivered soon`
-    //             }
-    //           }, phoneNumberId);
-    //         } else if (buttonId.startsWith('cancel_')) {
-    //           // Update rejected status
-    //           await docRef.update({
-    //             rejected: true
-    //           });
-    //           await sendWhatsAppMessage(phone, {
-    //             type: "text",
-    //             text: {
-    //               body: `*Oops*\nOrder cancelled. Please contact us on +250788640995`
-    //             }
-    //           }, phoneNumberId);
-    //         } else if (buttonId === 'CHECKOUT') {
-
-    //           // Send location request message
-    //           const locationRequestPayload = {
-    //             type: "interactive",
-    //             interactive: {
-    //               type: "location_request_message",
-    //               body: {
-    //                 text: "Share your delivery location",
-    //               },
-    //               action: {
-    //                 name: "send_location",
-    //               },
-    //             },
-    //           };
-
-    //           await sendWhatsAppMessage(customerInfo.phone, locationRequestPayload, phoneNumberId);
-
-
-    //         } else if (buttonId === 'MORE') {
-    //           const categories = ["elitra-plus-series", "weather-proof-of", "group-sockets", "accessory", "automation-group", "mechanical-group", "cable-trunking", "lighting-group"];
-    //           await sendCategoryList(phone, phoneNumberId, categories);
-    //         }
-    //       }
-    //       return;
-    //     }
-
-    //     // Only process if MENU pay
-    //     const userContext = userContexts.get(phone) || {};
-
-    //     if (userContext.stage === "EXPECTING_MTN_AIRTEL") {
-    //       await handleMobileMoneySelection(buttonId, phone, phoneNumberId);
-    //       console.log("Expecting MTN & AIRTEL button reply");
-    //       return;
-    //     }
-    //   } else if (message.interactive.type === "list_reply") {
-    //     // User selected a category from the list.
-    //     const selectedCategory = message.interactive.list_reply.id;
-    //     console.log("User selected category:", selectedCategory);
-    //     await sendCatalogForCategory(phone, phoneNumberId, selectedCategory);
-    //   }
-
-
-
-
-    //   break;
 
 
     case "location":
@@ -978,7 +894,7 @@ app.post("/api/save-order", async (req, res) => {
     };
 
     // Save order to Firestore
-    const docRef = await firestore.collection("whatsappOrdersGio").add(orderData);
+    const docRef = await firestore.collection("whatsappOrdersNkundino").add(orderData);
 
     console.log("Order saved successfully with ID:", docRef.id);
 
