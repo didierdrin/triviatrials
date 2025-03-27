@@ -846,8 +846,9 @@ function chunkArray(array, chunkSize) {
  */
 async function fetchProductRetailerIDs(category) {
   try {
+    const lowerCaseCategory = category.toLowerCase();
     const snapshot = await firestore.collection("nkundinoproducts")
-      .where("category", "==", category)
+      .where("category", "==", lowerCaseCategory)
       .get();
     if (snapshot.empty) {
       console.warn("No products found for category:", category);
