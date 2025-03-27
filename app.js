@@ -1422,7 +1422,62 @@ async function sendCategoryList(phone, phoneNumberId, categories) {
   }
 }
 
+
+
 async function sendCatalogChunk(phone, phoneNumberId, category, productRetailerIdsChunk) {
+  try {
+    // Use a helper function to capitalize the category (if desired)
+    const formattedCategory = capitalizeCategory(category);
+    
+    const url = `https://graph.facebook.com/${VERSION}/${phoneNumberId}/messages`;
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "interactive",
+      interactive: {
+        type: "product_list",
+        header: { 
+          type: "text",
+          text: formattedCategory  // Use the properly formatted category without truncation
+        },
+        body: { text: "Our products:" },
+        action: {
+          catalog_id: "3886617101587200", // Your app.js 1 catalog ID
+          sections: [{
+            title: formattedCategory,
+            product_items: productRetailerIdsChunk.map(id => ({
+              product_retailer_id: id,
+            })),
+          }],
+        },
+      },
+    };
+
+    console.log("Sending catalog payload:", JSON.stringify(payload, null, 2));
+    
+    const response = await axios({
+      method: "POST",
+      url,
+      headers: {
+        Authorization: `Bearer ${ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      data: payload,
+    });
+    
+    console.log(`Catalog chunk sent successfully for category ${formattedCategory}`);
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error sending catalog chunk:",
+      error.response?.data || error.message
+    );
+    throw error;
+  }
+}
+
+
+async function sendCatalogChunkOld(phone, phoneNumberId, category, productRetailerIdsChunk) {
   try {
     // Format category name for display
     const formattedCategory = formatCategoryTitle(category);
