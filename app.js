@@ -1051,9 +1051,9 @@ const handleLocation = async (location, phone, phoneNumberId) => {
 
 // const processedMessages = new Set();
 
-app.post("/webhook", async (req, res) => {
+//app.post("/webhook", async (req, res) => {
   // This endpoint is combined below.
-});
+//});
 
 // Giomessaging: Handle messages based on phone number ID
 async function handlePhoneNumber2Logic(message, phone, changes, phoneNumberId) {
@@ -1587,8 +1587,26 @@ app.post("/webhook", async (req, res) => {
     const message = messages[0];
     const phone = message.from;
 
-    // Use Trivia logic if phoneNumberId is not Giomessaging's; otherwise use Giomessaging logic.
-    if (true) {
+    // Check if message contains Nkundino keywords
+    const nkundinoKeywords = ['shop', 'products', 'nkundino', 'gura', 'haha'];
+    const isNkundinoMessage = message.type === 'text' && 
+      nkundinoKeywords.includes(message.text.body.trim().toLowerCase());
+
+    if (isNkundinoMessage) {
+      // Process with Nkundino bot
+      const uniqueMessageId = `${phoneNumberId}-${message.id}`;
+      if (!processedMessages.has(uniqueMessageId)) {
+        processedMessages.add(uniqueMessageId);
+        try {
+          await handlePhoneNumber2Logic(message, phone, changes, phoneNumberId);
+        } catch (err) {
+          console.error("Error processing Nkundinomessaging message:", err.message);
+        } finally {
+          setTimeout(() => processedMessages.delete(uniqueMessageId), 300000);
+        }
+      }
+    } else {
+      // Process with Trivia bot
       await trackUser(phone);
       try {
         switch (message.type) {
@@ -1603,20 +1621,6 @@ app.post("/webhook", async (req, res) => {
         }
       } catch (err) {
         console.error("Error processing Trivia message:", err);
-      }
-    } else {
-      const uniqueMessageId = `${phoneNumberId}-${message.id}`;
-      if (processedMessages.has(uniqueMessageId)) {
-        console.log("Duplicate message ignored:", uniqueMessageId);
-        return res.sendStatus(200);
-      }
-      processedMessages.add(uniqueMessageId);
-      try {
-        await handlePhoneNumber2Logic(message, phone, changes, phoneNumberId);
-      } catch (err) {
-        console.error("Error processing Nkundinomessaging message:", err.message);
-      } finally {
-        setTimeout(() => processedMessages.delete(uniqueMessageId), 300000);
       }
     }
   }
