@@ -1232,11 +1232,24 @@ function capitalizeCategory(category) {
     .join(" ");
 }
 
+function formatCategoryTitle(category) {
+  // First capitalize as before
+  const capitalized = category
+    .split("-")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+  
+  // Then truncate to 24 characters if needed
+  return capitalized.length > 24 
+    ? capitalized.substring(0, 21) + "..." 
+    : capitalized;
+}
+
 async function sendCategoryList(phone, phoneNumberId, categories) {
   try {
     const rows = categories.map((cat) => ({
       id: cat,
-      title: capitalizeCategory(cat),
+      title: formatCategoryTitle(cat),
     }));
     const payload = {
       messaging_product: "whatsapp",
