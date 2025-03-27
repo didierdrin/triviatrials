@@ -1017,6 +1017,141 @@ const handleLocation = async (location, phone, phoneNumberId) => {
       .collection("whatsappOrdersNkundino")
       .add(orderData);
     console.log("Order saved successfully to Firebase with ID:", docRef.id);
+
+    try {
+      const orderDoc = await docRef.get();
+      const orderData = orderDoc.data();
+      await axios.post(
+        `https://triviatrialsmessaging.onrender.com/api/send-order-confirmation`,
+        {
+          orderId: orderData.orderId,
+        }
+      );
+      console.log(
+        "Order confirmation endpoint triggered for order:",
+        orderData.orderId
+      );
+    } catch (error) {
+      console.error(
+        "Error triggering order confirmation endpoint:",
+        error
+      );
+    }
+
+    await sendWhatsAppMessage(
+      phone,
+      {
+        type: "interactive",
+        interactive: {
+          type: "button",
+          body: { text: "Proceed to payment" },
+          action: {
+            buttons: [
+              {
+                type: "reply",
+                reply: { id: "mtn_momo", title: "MTN MoMo" },
+              },
+            ],
+          },
+        },
+      },
+      phoneNumberId
+    );
+
+    userContext.stage = "EXPECTING_MTN_AIRTEL";
+    userContext.docReference = docRef;
+    userContext.vendorNumber = vendorNumber;
+    userContext.currency = currentCurrency;
+    userContexts.set(phone, userContext);
+    console.log("Location updated and order saved successfully.");
+  } catch (error) {
+    console.error("Error processing location and saving order:", error.message);
+    await sendWhatsAppMessage(
+      phone,
+      {
+        type: "text",
+        text: {
+          body: `Sorry, there was an error processing your location: ${error.message}. Please try again.`,
+        },
+      },
+      phoneNumberId
+    );
+  }
+};
+
+const handleLocationOld = async (location, phone, phoneNumberId) => {
+  try {
+    const userContext = userContexts.get(phone);
+    if (!userContext || !userContext.order) {
+      console.log("No order found in user context.");
+      await sendWhatsAppMessage(
+        phone,
+        {
+          type: "text",
+          text: { body: "No active order found. Please place an order first." },
+        },
+        phoneNumberId
+      );
+      return;
+    }
+    const { orderIdx, customerInfo, items } = userContext.order;
+    const catalogProducts = await fetchFacebookCatalogProducts();
+    const enrichedItems = items.map((item) => {
+      const productDetails = catalogProducts.find(
+        (product) => product.retailer_id === item.product_retailer_id
+      );
+      return {
+        product: item.product_retailer_id,
+        quantity: item.quantity,
+        price: item.item_price,
+        currency: item.currency,
+        product_name: productDetails?.name || "Unknown Product",
+        product_image: productDetails?.image_url || "defaultImage.jpg",
+      };
+    });
+    const currencies = enrichedItems[0].currency;
+    let vendorNumber = "+250788767816";
+    let currentCurrency = "RWF";
+    let countryCodeText = "RW";
+    if (currencies === "XOF") {
+      vendorNumber = "+22892450808";
+      currentCurrency = "XOF";
+      countryCodeText = "TG";
+    }
+    function orderNumber() {
+      const randomNum = Math.floor(1 + Math.random() * (10000000 - 1));
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const formattedNum = randomNum.toString().padStart(6, "0");
+      return `ORD-${dateStr}-${formattedNum}`;
+    }
+    const orderidd = orderNumber();
+    const orderData = {
+      orderId: orderidd,
+      phone: customerInfo.phone,
+      currency: currentCurrency,
+      countryCode: countryCodeText,
+      amount: enrichedItems.reduce(
+        (total, item) => total + item.price * item.quantity,
+        0
+      ),
+      products: enrichedItems,
+      user: `+${customerInfo.phone}`,
+      date: new Date(),
+      paid: false,
+      rejected: false,
+      served: false,
+      accepted: false,
+      vendor: vendorNumber,
+      deliveryLocation: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      },
+    };
+    const docRef = await firestore
+      .collection("whatsappOrdersNkundino")
+      .add(orderData);
+    console.log("Order saved successfully to Firebase with ID:", docRef.id);
     await sendWhatsAppMessage(
       phone,
       {
