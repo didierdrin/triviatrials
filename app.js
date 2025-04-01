@@ -11,6 +11,17 @@ import { firestore } from "./firebaseConfig.js";
 import { generateQuestionsWithRetry } from './geminiQuestionGenerator.js';
 import { TOPICS, GAME_STATES, GameSession, gameManager } from './gameConfig.js';
 
+// Import the arbitrage service
+import { 
+  initArbitrageService, 
+  getArbitrageData, 
+  updateArbitrageData, 
+  formatArbitrageMessage 
+} from './arbitrageService.js';
+
+// Initialize arbitrage service
+initArbitrageService();
+
 // Custom HTTP and HTTPS Agents for robust connections
 const httpAgent = new http.Agent({
   keepAlive: true,
@@ -175,7 +186,7 @@ async function sendDefaultMessage(phone, phoneNumberId) {
   await sendWhatsAppMessage(phone, {
     type: "text",
     text: {
-      body: `*Start*\nSend 'Play' to start a new game or 'help' for instructions.`
+      body: `*Start*\nSend 'Play' to start a new game, 'bet' for betting arbitrage opportunities, or 'help' for instructions.`
     }
   }, phoneNumberId);
 }
@@ -247,6 +258,50 @@ async function sendWelcomeMessage(phone, phoneNumberId) {
 }
 
 
+// NEW: Function to handle betting commands
+async function handleBettingCommand(message, phone, phoneNumberId) {
+  // Check for subcommands
+  const msgText = message.toLowerCase().trim();
+  
+  if (msgText === 'bet update') {
+    // Force refresh of arbitrage data
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: { 
+        body: "Updating betting arbitrage data. This may take a few minutes..." 
+      }
+    }, phoneNumberId);
+    
+    try {
+      await updateArbitrageData();
+      const arbitrageData = getArbitrageData();
+      const formattedMessage = formatArbitrageMessage(arbitrageData);
+      
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { body: formattedMessage }
+      }, phoneNumberId);
+    } catch (error) {
+      console.error("Error updating arbitrage data:", error);
+      await sendWhatsAppMessage(phone, {
+        type: "text",
+        text: { 
+          body: "Sorry, there was an error updating the betting data. Please try again later." 
+        }
+      }, phoneNumberId);
+    }
+  } else {
+    // Default 'bet' command - show current arbitrage data
+    const arbitrageData = getArbitrageData();
+    const formattedMessage = formatArbitrageMessage(arbitrageData);
+    
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: { body: formattedMessage }
+    }, phoneNumberId);
+  }
+}
+
 async function sendHelpMessage(phone, phoneNumberId) {
   const helpText = `🎮 *How to Play*
 
@@ -256,7 +311,11 @@ async function sendHelpMessage(phone, phoneNumberId) {
 4️⃣ Choose number of questions (5-20).
 5️⃣ Answer questions by selecting options.
 
-*Commands:*
+*Betting Commands:*
+• 'bet' - View current arbitrage opportunities
+• 'bet update' - Force refresh of betting data
+
+*Other Commands:*
 • 'play' - Start new game
 • 'help' - Show this help message
 • 'quit' - Exit current game
@@ -499,10 +558,17 @@ async function handleGameAnswer(answer, phone, phoneNumberId) {
   }
 }
 
+
 // ------------------------------
 // Handling Incoming WhatsApp Messages
 // ------------------------------
 async function handleTextMessages(message, phone, phoneNumberId) {
+  // Check for betting commands first
+  if (message.text.body.toLowerCase() === 'bet' || message.text.body.toLowerCase() === 'bet update') {
+    await handleBettingCommand(message.text.body, phone, phoneNumberId);
+    return;
+  }
+  
   // Check for join command for multiplayer
   if (message.text.body.toLowerCase().startsWith("join ")) {
     const parts = message.text.body.split(" ");
@@ -571,6 +637,16 @@ async function handleTextMessages(message, phone, phoneNumberId) {
     await sendHelpMessage(phone, phoneNumberId);
     return;
   }
+  if (message.text.body.toLowerCase() === 'quit' && userContext.state === GAME_STATES.IN_GAME) {
+    userContext.state = GAME_STATES.IDLE;
+    gameManager.userContexts.set(phone, userContext);
+    await sendWhatsAppMessage(phone, {
+      type: "text",
+      text: { body: "Game quit. Type 'play' to start a new game." }
+    }, phoneNumberId);
+    return;
+  }
+  
   switch (userContext.state) {
     case GAME_STATES.QUESTION_COUNT:
       await handleQuestionCountInput(message.text.body, phone, phoneNumberId);
