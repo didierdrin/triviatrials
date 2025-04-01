@@ -1,37 +1,38 @@
 # extract_odds.py
 import csv
 import time
-import os
 from selenium import webdriver
-from selenium.webdriver.edge.options import Options
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.edge.service import Service
-from webdriver_manager.microsoft import EdgeChromiumDriverManager  # Use Edge WebDriver manager
+from webdriver_manager.chrome import ChromeDriverManager
 
 def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
     """
-    Scrape sports betting odds from BetPawa Rwanda website using Selenium.
+    Scrape sports betting odds from BetPawa Rwanda website using Selenium with Chrome.
     Extracts date, team names, sport type, and odds.
     """
     with open(csv_file, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(["Date", "Teams", "Sport", "Home Odds", "Draw Odds", "Away Odds"])
     
-    # Set up Edge options
-    edge_options = Options()
-    edge_options.add_argument("--headless")  # Run in headless mode
-    edge_options.add_argument("--no-sandbox")
-    edge_options.add_argument("--disable-dev-shm-usage")
+    # Set up Chrome options
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
     
-    # Use WebDriverManager to handle driver installation
+    # Use WebDriverManager to handle Chrome driver installation
     try:
-        print("Setting up Edge driver with WebDriverManager")
-        service = Service(EdgeChromiumDriverManager().install())
-        driver = webdriver.Edge(service=service, options=edge_options)
+        print("Setting up Chrome driver with WebDriverManager")
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=chrome_options)
     except Exception as e:
-        print(f"Error initializing Edge driver: {str(e)}")
+        print(f"Error initializing Chrome driver: {str(e)}")
         raise
     
     try:
@@ -40,10 +41,11 @@ def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
         wait = WebDriverWait(driver, 30)
         print(f"Page title: {driver.title}")
         
+        # Wait for dynamic content to load
         time.sleep(10)
         print("Extra wait time completed")
         
-        # Try different selectors
+        # Try different selectors for events
         events = driver.find_elements(By.CSS_SELECTOR, ".event, .prematch, .match-row, tr")
         print(f"Found {len(events)} potential event elements")
         
@@ -75,7 +77,6 @@ def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
             except Exception as e:
                 print(f"Error extracting match details: {e}")
 
-            
             # Print odds before writing
             print(f"Extracted odds: Home - {home_odds}, Draw - {draw_odds}, Away - {away_odds}")
 
@@ -93,7 +94,7 @@ def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
     
     except Exception as e:
         print(f"An error occurred: {str(e)}")
-    
+        raise
     finally:
         driver.quit()
         print("Browser closed.")
