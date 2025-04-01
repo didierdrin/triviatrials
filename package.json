@@ -20,6 +20,9 @@
     "@google/generative-ai": "^0.2.0",
     "genkit": "*",
     "@genkit-ai/googleai": "*",
-    "uuid": "*"
+    "uuid": "*",
+    "puppeteer": "^19.7.0",
+    "csv-parse": "^5.3.6",
+    "csv-stringify": "^6.2.4"
   }
 }
