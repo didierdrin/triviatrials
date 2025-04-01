@@ -29,7 +29,10 @@ def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
     # Use WebDriverManager to handle Chrome driver installation
     try:
         print("Setting up Chrome driver with WebDriverManager")
-        service = Service(ChromeDriverManager().install())
+        # Set the Chrome binary path explicitly
+        chrome_options.binary_location = "/usr/bin/google-chrome-stable"
+
+        service = Service("/usr/local/bin/chromedriver") 
         driver = webdriver.Chrome(service=service, options=chrome_options)
     except Exception as e:
         print(f"Error initializing Chrome driver: {str(e)}")
