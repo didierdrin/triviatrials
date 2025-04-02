@@ -1,4 +1,5 @@
 # extract_odds.py
+import os
 import csv
 import time
 from selenium import webdriver
