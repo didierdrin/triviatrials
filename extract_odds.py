@@ -19,8 +19,12 @@ def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
         writer = csv.writer(file)
         writer.writerow(["Date", "Teams", "Sport", "Home Odds", "Draw Odds", "Away Odds"])
     
+    # Ensure Chrome binary is set correctly
+    chrome_binary = os.getenv("CHROME_BIN", "/opt/google/chrome/google-chrome")
+
     # Set up Chrome options
-    chrome_options = Options()
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.binary_location = chrome_binary
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -29,11 +33,8 @@ def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
     try:
         print("Setting up Chrome driver with WebDriverManager")
         # Get Chrome and ChromeDriver paths from environment variables
-        chrome_binary = os.getenv("CHROME_BIN", "/usr/bin/google-chrome-stable")
-        chromedriver_binary = os.getenv("CHROMEDRIVER_BIN", "/usr/local/bin/chromedriver")
-
-        chrome_options.binary_location = chrome_binary
-        service = Service(chromedriver_binary)
+        # Use WebDriverManager to automatically download ChromeDriver
+        service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
     except Exception as e:
         print(f"Error initializing Chrome driver: {str(e)}")
