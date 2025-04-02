@@ -20,19 +20,19 @@ def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
     
     # Set up Chrome options
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--window-size=1920,1080")
     
     # Use WebDriverManager to handle Chrome driver installation
     try:
         print("Setting up Chrome driver with WebDriverManager")
-        # Set the Chrome binary path explicitly
-        chrome_options.binary_location = "/usr/bin/google-chrome-stable"
+        # Get Chrome and ChromeDriver paths from environment variables
+        chrome_binary = os.getenv("CHROME_BIN", "/usr/bin/google-chrome-stable")
+        chromedriver_binary = os.getenv("CHROMEDRIVER_BIN", "/usr/local/bin/chromedriver")
 
-        service = Service("/usr/local/bin/chromedriver") 
+        chrome_options.binary_location = chrome_binary
+        service = Service(chromedriver_binary)
         driver = webdriver.Chrome(service=service, options=chrome_options)
     except Exception as e:
         print(f"Error initializing Chrome driver: {str(e)}")
