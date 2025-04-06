@@ -2,107 +2,31 @@
 import os
 import csv
 import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
+
+import requests
+from bs4 import BeautifulSoup
+import csv
 
 def scrape_betpawa_odds(url, csv_file="betpawa_odds.csv"):
-    """
-    Scrape sports betting odds from BetPawa Rwanda website using Selenium with Chrome.
-    Extracts date, team names, sport type, and odds.
-    """
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, "html.parser")
+
     with open(csv_file, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
         writer.writerow(["Date", "Teams", "Sport", "Home Odds", "Draw Odds", "Away Odds"])
-    
-    # Ensure Chrome binary is set correctly
-    chrome_binary = os.getenv("CHROME_BIN", "/opt/google/chrome/google-chrome")
 
-    # Set up Chrome options
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.binary_location = chrome_binary
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    
-    # Use WebDriverManager to handle Chrome driver installation
-    try:
-        print("Setting up Chrome driver with WebDriverManager")
-        # Get Chrome and ChromeDriver paths from environment variables
-        # Use WebDriverManager to automatically download ChromeDriver
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-    except Exception as e:
-        print(f"Error initializing Chrome driver: {str(e)}")
-        raise
-    
-    try:
-        print(f"Loading page: {url}")
-        driver.get(url)
-        wait = WebDriverWait(driver, 30)
-        print(f"Page title: {driver.title}")
-        
-        # Wait for dynamic content to load
-        time.sleep(10)
-        print("Extra wait time completed")
-        
-        # Try different selectors for events
-        events = driver.find_elements(By.CSS_SELECTOR, ".event, .prematch, .match-row, tr")
-        print(f"Found {len(events)} potential event elements")
-        
-        records_count = 0
-        
-        for match in events:
-            date_str = "N/A"
-            teams = "N/A"
-            home_odds = "N/A"
-            draw_odds = "N/A"
-            away_odds = "N/A"
-            
+        matches = soup.select(".match-row")  # Update this selector to match BetPawa’s HTML
+        for match in matches:
             try:
-                match_text = match.text.strip()
-                if match_text:
-                    print(f"Match text: {match_text[:100]}...")  # Log first 100 chars for debugging
-                    lines = match_text.split("\n")
-        
-                    if len(lines) >= 6:  # Ensure there are enough lines
-                        date_str = lines[0]  # First line is the date
-                        teams = f"{lines[1]} vs {lines[2]}"  # Next two lines are team names
-            
-                        # Extract odds assuming they appear after the teams
-                        home_odds = lines[-6]  # Third last line
-                        draw_odds = lines[-4]  # Second last line
-                        away_odds = lines[-2]  # Last line
-                    else:
-                        home_odds, draw_odds, away_odds = "N/A", "N/A", "N/A"
+                date = match.select_one(".date").text.strip()
+                teams = match.select_one(".teams").text.strip()
+                home = match.select_one(".odds-home").text.strip()
+                draw = match.select_one(".odds-draw").text.strip()
+                away = match.select_one(".odds-away").text.strip()
+                writer.writerow([date, teams, "Football", home, draw, away])
             except Exception as e:
-                print(f"Error extracting match details: {e}")
+                print("Skipping a match due to missing data:", e)
 
-            # Print odds before writing
-            print(f"Extracted odds: Home - {home_odds}, Draw - {draw_odds}, Away - {away_odds}")
-
-            # Ensure odds are non-empty before writing
-            if home_odds and draw_odds and away_odds:
-                with open(csv_file, mode="a", newline="", encoding="utf-8") as file:
-                    writer = csv.writer(file)
-                    writer.writerow([date_str, teams, "Football", home_odds, draw_odds, away_odds])
-                print(f"✅ Added to CSV: {teams} on {date_str} with odds {home_odds}, {draw_odds}, {away_odds}")
-            else:
-                print(f"⚠️ Skipping writing to CSV due to missing odds. Extracted: {home_odds}, {draw_odds}, {away_odds}")
-
-            records_count += 1
-            print(f"Added to CSV ({records_count}): {teams} on {date_str} with odds {home_odds}, {draw_odds}, {away_odds}")
-    
-    except Exception as e:
-        print(f"An error occurred: {str(e)}")
-        raise
-    finally:
-        driver.quit()
-        print("Browser closed.")
         
 if __name__ == "__main__":
     url = "https://www.betpawa.rw/events?marketId=1X2&categoryId=2"  # similar to https://www.betpawa.rw/events
