@@ -1,13 +1,4 @@
-// arbitrageService.js
-import axios from 'axios';
-import { exec } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { firestore } from "./firebaseConfig.js";
 
 // Cache for arbitrage data
 let arbitrageCache = {
@@ -15,86 +6,105 @@ let arbitrageCache = {
   lastUpdated: null
 };
 
-// Function to extract odds data (simulating Python script execution)
-async function extractOddsData() {
-  return new Promise((resolve, reject) => {
-    console.log("Starting odds extraction process...");
-    
-    // Execute the Python script to scrape odds
-    exec('python3 extract_odds.py', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error executing odds extraction script: ${error.message}`);
-        return reject(error);
-      }
-      if (stderr) {
-        console.error(`Script stderr: ${stderr}`);
-      }
-      console.log(`Script stdout: ${stdout}`);
-      resolve("Odds data extracted successfully");
-    });
-  });
-}
-
-// Function to analyze for arbitrage opportunities (simulating Python script execution)
-async function analyzeArbitrageOpportunities() {
-  return new Promise((resolve, reject) => {
-    console.log("Starting arbitrage analysis...");
-    
-    // Execute the Python script to analyze arbitrage
-    exec('python3 analyze_arbitrage.py', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error executing arbitrage analysis script: ${error.message}`);
-        return reject(error);
-      }
-      if (stderr) {
-        console.error(`Script stderr: ${stderr}`);
-      }
-      console.log(`Script stdout: ${stdout}`);
-      resolve("Arbitrage analysis completed successfully");
-    });
-  });
-}
-
-// Function to read arbitrage data from CSV
-function readArbitrageData() {
+// Function to calculate arbitrage opportunities
+async function calculateArbitrageOpportunities() {
   try {
-    const csvFilePath = path.join(__dirname, 'betting_arbitrage.csv');
-    if (!fs.existsSync(csvFilePath)) {
-      console.log("Arbitrage CSV file not found");
-      return [];
-    }
+    console.log("Calculating arbitrage opportunities from Firestore...");
     
-    const csvData = fs.readFileSync(csvFilePath, 'utf8');
-    const lines = csvData.trim().split('\n');
-    const headers = lines[0].split(',');
+    // Get all betting odds from Firestore
+    const snapshot = await firestore.collection('betting_odds').get();
+    const allOdds = snapshot.docs.map(doc => doc.data());
     
-    const results = [];
-    for (let i = 1; i < lines.length; i++) {
-      const obj = {};
-      const currentLine = lines[i].split(',');
-      
-      for (let j = 0; j < headers.length; j++) {
-        obj[headers[j]] = currentLine[j];
+    const arbitrageOpportunities = [];
+    
+    // Analyze each match for arbitrage
+    for (const odds of allOdds) {
+      try {
+        // Convert odds to implied probabilities
+        const homeDecimal = americanToDecimal(odds.home_odds);
+        const awayDecimal = americanToDecimal(odds.away_odds);
+        const drawDecimal = odds.draw_odds ? americanToDecimal(odds.draw_odds) : null;
+        
+        // Calculate total implied probability
+        let totalImpliedProbability = 1/homeDecimal + 1/awayDecimal;
+        if (drawDecimal) {
+          totalImpliedProbability += 1/drawDecimal;
+        }
+        
+        // Check for arbitrage opportunity (total implied probability < 1)
+        if (totalImpliedProbability < 1) {
+          const arbitrage = {
+            id: `${odds.teams}-${odds.date}`,
+            teams: odds.teams,
+            date: odds.date,
+            sport: odds.sport,
+            home_odds: odds.home_odds,
+            away_odds: odds.away_odds,
+            draw_odds: odds.draw_odds || 'N/A',
+            scrape_time: odds.scrape_time,
+            total_implied_prob: totalImpliedProbability,
+            arbitrage_percentage: ((1 - totalImpliedProbability) * 100).toFixed(2),
+            return_percentage: ((1/totalImpliedProbability - 1) * 100).toFixed(2)
+          };
+          
+          // Calculate optimal stakes for $100 total bet
+          const totalBet = 100;
+          arbitrage.home_stake = (totalBet / (homeDecimal * totalImpliedProbability)).toFixed(2);
+          arbitrage.away_stake = (totalBet / (awayDecimal * totalImpliedProbability)).toFixed(2);
+          if (drawDecimal) {
+            arbitrage.draw_stake = (totalBet / (drawDecimal * totalImpliedProbability)).toFixed(2);
+          }
+          arbitrage.guaranteed_profit = (totalBet * (1/totalImpliedProbability - 1)).toFixed(2);
+          
+          arbitrageOpportunities.push(arbitrage);
+        }
+      } catch (e) {
+        console.error(`Error processing match ${odds.teams}:`, e);
       }
-      results.push(obj);
     }
     
-    console.log(`Read ${results.length} arbitrage opportunities from CSV`);
-    return results;
+    console.log(`Found ${arbitrageOpportunities.length} arbitrage opportunities`);
+    return arbitrageOpportunities;
   } catch (error) {
-    console.error("Error reading arbitrage data:", error);
-    return [];
+    console.error("Error calculating arbitrage:", error);
+    throw error;
   }
 }
 
-// Main function to update arbitrage data (runs every 2 hours)
+// Convert American odds to decimal odds
+function americanToDecimal(americanOdds) {
+  if (!americanOdds) return 0;
+  
+  // Remove + if present
+  const oddsStr = americanOdds.replace('+', '');
+  const oddsNum = parseFloat(oddsStr);
+  
+  if (isNaN(oddsNum)) return 0;
+  
+  if (americanOdds.startsWith('+')) {
+    // Positive odds
+    return 1 + (oddsNum / 100);
+  } else {
+    // Negative odds (or already decimal)
+    if (oddsNum > 100) {
+      // This is positive odds without + sign
+      return 1 + (oddsNum / 100);
+    } else if (oddsNum >= 1) {
+      // Already in decimal format
+      return oddsNum;
+    } else {
+      // Negative odds
+      return 1 + (100 / Math.abs(oddsNum));
+    }
+  }
+}
+
+// Main function to update arbitrage data
 async function updateArbitrageData() {
   try {
     console.log("Starting arbitrage data update process...");
-    await extractOddsData();
-    await analyzeArbitrageOpportunities();
+    const arbitrageData = await calculateArbitrageOpportunities();
     
-    const arbitrageData = readArbitrageData();
     arbitrageCache.data = arbitrageData;
     arbitrageCache.lastUpdated = new Date();
     
@@ -106,7 +116,43 @@ async function updateArbitrageData() {
   }
 }
 
-// Initialize the data update process and schedule regular updates
+// Function to format arbitrage opportunities for display
+function formatArbitrageMessage(arbitrageData) {
+  if (!arbitrageData || arbitrageData.length === 0) {
+    return "No arbitrage betting opportunities found at the moment. Check back later.";
+  }
+  
+  let message = "*🔍 BETTING ARBITRAGE OPPORTUNITIES*\n\n";
+  
+  // Sort by return percentage (descending)
+  const sortedData = [...arbitrageData].sort((a, b) => 
+    parseFloat(b.return_percentage) - parseFloat(a.return_percentage)
+  );
+  
+  // Take top 5 opportunities or all if less than 5
+  const topOpportunities = sortedData.slice(0, Math.min(5, sortedData.length));
+  
+  topOpportunities.forEach((opportunity, index) => {
+    message += `*${index + 1}. ${opportunity.teams}*\n`;
+    message += `📅 ${opportunity.date} | ${opportunity.sport}\n`;
+    message += `⚽ Odds: H ${opportunity.home_odds} | D ${opportunity.draw_odds} | A ${opportunity.away_odds}\n`;
+    message += `💰 Optimal Stakes (for $100 total):\n`;
+    message += `   - Home: $${opportunity.home_stake}\n`;
+    message += `   - Away: $${opportunity.away_stake}\n`;
+    if (opportunity.draw_stake) {
+      message += `   - Draw: $${opportunity.draw_stake}\n`;
+    }
+    message += `✅ Guaranteed Profit: $${opportunity.guaranteed_profit}\n`;
+    message += `📈 Return Percentage: ${opportunity.return_percentage}%\n\n`;
+  });
+  
+  message += `_Updated: ${arbitrageCache.lastUpdated?.toLocaleString() || "Never"}_\n`;
+  message += "Type 'update' to refresh the data.";
+  
+  return message;
+}
+
+// Initialize the service
 function initArbitrageService() {
   console.log("Initializing arbitrage service...");
   
@@ -115,21 +161,21 @@ function initArbitrageService() {
     .then(() => console.log("Initial arbitrage data update completed"))
     .catch(err => console.error("Error in initial arbitrage update:", err));
   
-  // Schedule updates every 2 hours
-  const TWO_HOURS = 2 * 60 * 60 * 1000;
+  // Schedule updates every 3 hours
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
   setInterval(() => {
     console.log("Scheduled arbitrage data update triggered");
     updateArbitrageData()
       .then(() => console.log("Scheduled arbitrage data update completed"))
       .catch(err => console.error("Error in scheduled arbitrage update:", err));
-  }, TWO_HOURS);
+  }, THREE_HOURS);
 }
 
 // Function to get current arbitrage data
 function getArbitrageData() {
-  // If data is older than 2 hours, trigger an update
-  const TWO_HOURS = 2 * 60 * 60 * 1000;
-  if (!arbitrageCache.lastUpdated || (new Date() - arbitrageCache.lastUpdated > TWO_HOURS)) {
+  // If data is older than 3 hours, trigger an update
+  const THREE_HOURS = 3 * 60 * 60 * 1000;
+  if (!arbitrageCache.lastUpdated || (new Date() - arbitrageCache.lastUpdated > THREE_HOURS)) {
     console.log("Arbitrage data is stale, triggering update...");
     updateArbitrageData()
       .then(() => console.log("Stale data refresh completed"))
@@ -137,36 +183,6 @@ function getArbitrageData() {
   }
   
   return arbitrageCache.data;
-}
-
-// Function to format arbitrage opportunities for WhatsApp message
-function formatArbitrageMessage(arbitrageData) {
-  if (!arbitrageData || arbitrageData.length === 0) {
-    return "No arbitrage betting opportunities found at the moment. Check back later.";
-  }
-  
-  let message = "*🔍 BETTING ARBITRAGE OPPORTUNITIES*\n\n";
-  
-  // Sort by profit percentage (descending)
-  const sortedData = [...arbitrageData].sort((a, b) => 
-    parseFloat(b['Profit Percentage']) - parseFloat(a['Profit Percentage'])
-  );
-  
-  // Take top 5 opportunities or all if less than 5
-  const topOpportunities = sortedData.slice(0, Math.min(5, sortedData.length));
-  
-  topOpportunities.forEach((game, index) => {
-    message += `*${index + 1}. ${game.Teams}*\n`;
-    message += `📅 Date: ${game.Date}\n`;
-    message += `📊 Odds: Home ${game.Home_Odds}, Away ${game.Away_Odds}\n`;
-    message += `💰 Optimal Stakes: Home $${game.Home_Stake}, Away $${game.Away_Stake}\n`;
-    message += `✅ Guaranteed Profit: $${game.Profit} (${game.Profit_Percentage}%)\n\n`;
-  });
-  
-  message += "_Updated: " + (arbitrageCache.lastUpdated ? arbitrageCache.lastUpdated.toLocaleString() : "Never") + "_\n";
-  message += "Type 'bet update' to force refresh the data.";
-  
-  return message;
 }
 
 export { 
