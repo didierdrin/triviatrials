@@ -67,232 +67,169 @@ app.use((req, res, next) => {
 const CATALOG_ID = "3902441613391576";
 const CATEGORIES = ["MENS", "WOMENS"];
 
-// Product database from your catalog
-const PRODUCTS = {
+// Product retailer IDs from your catalog
+const PRODUCT_RETAILER_IDS = {
+  "MENS": [
+    "MENS 1", "MENS 2", "MENS 3", "MENS 4", "MENS 5",
+    "MENS 6", "MENS 7", "MENS 8", "MENS 9", "MENS 10"
+  ],
+  "WOMENS": [
+    "WOMENS 1", "WOMENS 2", "WOMENS 3", "WOMENS 4", "WOMENS 5",
+    "WOMENS 6", "WOMENS 7", "WOMENS 8", "WOMENS 9", "WOMENS 10"
+  ]
+};
+
+// Product details for reference (for checkout summary)
+const PRODUCT_DETAILS = {
   "MENS 1": {
-    id: "MENS 1",
     title: "Men's Alpine Soft Wool Blazer",
-    description: "Elevate your professional wardrobe with this luxurious soft wool blazer. Tailored fit perfect for the boardroom.",
     price: 375000,
     currency: "RWF",
-    category: "MENS",
-    style: "Professional",
-    gender: "male",
-    sizes: ["S", "M", "L", "XL"]
+    style: "Professional"
   },
   "MENS 2": {
-    id: "MENS 2",
     title: "Men's Organic Cotton Oxford Shirt",
-    description: "A casual staple made from premium organic cotton. Breathable and crisp, ideal for smart-casual Fridays.",
     price: 83000,
     currency: "RWF",
-    category: "MENS",
-    style: "Professional",
-    gender: "male",
-    sizes: ["S", "M", "L", "XL"]
+    style: "Professional"
   },
   "MENS 3": {
-    id: "MENS 3",
     title: "Men's Italian Leather Chelsea Boot",
-    description: "Handcrafted luxurious leather boots with elastic side panels. Comfortable enough for all-day wear.",
     price: 540000,
     currency: "RWF",
-    category: "MENS",
-    style: "Luxurious",
-    gender: "male",
-    sizes: ["8", "9", "10", "11", "12"]
+    style: "Luxurious"
   },
   "MENS 4": {
-    id: "MENS 4",
     title: "Men's Cashmere Blend Roll Neck",
-    description: "Ultra-soft cashmere blend sweater. Luxurious feel and minimalist design for a sophisticated winter look.",
     price: 240000,
     currency: "RWF",
-    category: "MENS",
-    style: "Luxurious",
-    gender: "male",
-    sizes: ["S", "M", "L", "XL"]
+    style: "Luxurious"
   },
   "MENS 5": {
-    id: "MENS 5",
     title: "Men's Technical Chino Pants",
-    description: "Casual comfort with a technical stretch fabric. Wrinkle-resistant and water-repellent for the modern man.",
     price: 113000,
     currency: "RWF",
-    category: "MENS",
-    style: "Casual",
-    gender: "male",
-    sizes: ["30", "32", "34", "36"]
+    style: "Casual"
   },
   "MENS 6": {
-    id: "MENS 6",
     title: "Men's Pique Polo Shirt",
-    description: "The classic casual polo. Breathable cotton pique with a ribbed collar. Perfect for weekends.",
     price: 57000,
     currency: "RWF",
-    category: "MENS",
-    style: "Casual",
-    gender: "male",
-    sizes: ["S", "M", "L", "XL"]
+    style: "Casual"
   },
   "MENS 7": {
-    id: "MENS 7",
     title: "Men's Linen Blend Summer Blazer",
-    description: "A lightweight, unstructured blazer for warm weather. Keeps you professional without overheating.",
     price: 253000,
     currency: "RWF",
-    category: "MENS",
-    style: "Professional",
-    gender: "male",
-    sizes: ["S", "M", "L", "XL"]
+    style: "Professional"
   },
   "MENS 8": {
-    id: "MENS 8",
     title: "Men's Merino Wool V-Neck",
-    description: "Fine gauge merino wool sweater. A luxurious layering piece that works under a blazer or on its own.",
     price: 146000,
     currency: "RWF",
-    category: "MENS",
-    style: "Luxurious",
-    gender: "male",
-    sizes: ["S", "M", "L", "XL"]
+    style: "Luxurious"
   },
   "MENS 9": {
-    id: "MENS 9",
     title: "Men's Heavyweight Hoodie",
-    description: "Ultra-soft, brushed fleece hoodie for ultimate casual comfort. Durable construction.",
     price: 75000,
     currency: "RWF",
-    category: "MENS",
-    style: "Casual",
-    gender: "male",
-    sizes: ["S", "M", "L", "XL"]
+    style: "Casual"
   },
   "MENS 10": {
-    id: "MENS 10",
     title: "Men's Silk Knit Tie",
-    description: "A luxurious accessory to complete your professional look. Woven from pure silk with a subtle texture.",
     price: 62000,
     currency: "RWF",
-    category: "MENS",
-    style: "Professional",
-    gender: "male",
-    sizes: ["One Size"]
+    style: "Professional"
   },
   "WOMENS 1": {
-    id: "WOMENS 1",
     title: "Women's Tailored Trousers",
-    description: "Professional high-waist trousers with a straight leg. Features a front crease for a polished look.",
     price: 164000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Professional",
-    gender: "female",
-    sizes: ["2", "4", "6", "8", "10"]
+    style: "Professional"
   },
   "WOMENS 2": {
-    id: "WOMENS 2",
     title: "Women's Oversized Cashmere Sweater",
-    description: "A luxurious, cozy cashmere sweater. The relaxed fit makes it perfect for both lounging and luxury outings.",
     price: 316000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Luxurious",
-    gender: "female",
-    sizes: ["XS", "S", "M", "L"]
+    style: "Luxurious"
   },
   "WOMENS 3": {
-    id: "WOMENS 3",
     title: "Women's Silk Blouse",
-    description: "Elegant and luxurious blouse made from 100% silk. A timeless piece for the office or dinner dates.",
     price: 177000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Professional",
-    gender: "female",
-    sizes: ["XS", "S", "M", "L"]
+    style: "Professional"
   },
   "WOMENS 4": {
-    id: "WOMENS 4",
     title: "Women's High-Rise Skinny Jeans",
-    description: "Casual everyday denim with a comfortable stretch. High-rise waist flatters the figure.",
     price: 100000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Casual",
-    gender: "female",
-    sizes: ["24", "26", "28", "30", "32"]
+    style: "Casual"
   },
   "WOMENS 5": {
-    id: "WOMENS 5",
     title: "Women's Leather Moto Jacket",
-    description: "A statement piece in luxurious lambskin leather. Adds an edge to any casual outfit.",
     price: 507000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Luxurious",
-    gender: "female",
-    sizes: ["XS", "S", "M", "L"]
+    style: "Luxurious"
   },
   "WOMENS 6": {
-    id: "WOMENS 6",
     title: "Women's Ribbed Knit Midi Dress",
-    description: "A versatile casual dress that can be dressed up or down. Comfortable ribbed fabric.",
     price: 113000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Casual",
-    gender: "female",
-    sizes: ["XS", "S", "M", "L"]
+    style: "Casual"
   },
   "WOMENS 7": {
-    id: "WOMENS 7",
     title: "Women's Pointed Toe Pump",
-    description: "Luxurious leather heels. Classic pointed toe design suitable for the boardroom.",
     price: 202000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Professional",
-    gender: "female",
-    sizes: ["6", "7", "8", "9", "10"]
+    style: "Professional"
   },
   "WOMENS 8": {
-    id: "WOMENS 8",
     title: "Women's Quilted Crossbody Bag",
-    description: "A luxurious, compact bag crafted from pebbled leather. Perfect for evenings out.",
     price: 253000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Luxurious",
-    gender: "female",
-    sizes: ["One Size"]
+    style: "Luxurious"
   },
   "WOMENS 9": {
-    id: "WOMENS 9",
     title: "Women's Relaxed Linen Shirt",
-    description: "A casual oversized shirt in breathable linen. Your go-to for summer layering.",
     price: 88000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Casual",
-    gender: "female",
-    sizes: ["XS", "S", "M", "L"]
+    style: "Casual"
   },
   "WOMENS 10": {
-    id: "WOMENS 10",
     title: "Women's Cashmere Scarf",
-    description: "Add a touch of luxury to any outfit with this extra-wide cashmere scarf.",
     price: 151000,
     currency: "RWF",
-    category: "WOMENS",
-    style: "Luxurious",
-    gender: "female",
-    sizes: ["One Size"]
+    style: "Luxurious"
   }
 };
 
+// Size options for each product (for reference)
+const PRODUCT_SIZES = {
+  "MENS 1": ["S", "M", "L", "XL"],
+  "MENS 2": ["S", "M", "L", "XL"],
+  "MENS 3": ["8", "9", "10", "11", "12"],
+  "MENS 4": ["S", "M", "L", "XL"],
+  "MENS 5": ["30", "32", "34", "36"],
+  "MENS 6": ["S", "M", "L", "XL"],
+  "MENS 7": ["S", "M", "L", "XL"],
+  "MENS 8": ["S", "M", "L", "XL"],
+  "MENS 9": ["S", "M", "L", "XL"],
+  "MENS 10": ["One Size"],
+  "WOMENS 1": ["2", "4", "6", "8", "10"],
+  "WOMENS 2": ["XS", "S", "M", "L"],
+  "WOMENS 3": ["XS", "S", "M", "L"],
+  "WOMENS 4": ["24", "26", "28", "30", "32"],
+  "WOMENS 5": ["XS", "S", "M", "L"],
+  "WOMENS 6": ["XS", "S", "M", "L"],
+  "WOMENS 7": ["6", "7", "8", "9", "10"],
+  "WOMENS 8": ["One Size"],
+  "WOMENS 9": ["XS", "S", "M", "L"],
+  "WOMENS 10": ["One Size"]
+};
+
 // Shopping cart management
-const userCarts = new Map(); // phone -> { items: [], stage: string }
+const userCarts = new Map(); // phone -> { items: [], stage: string, currentProduct: null }
+const processedMessages = new Set();
 
 // --- NEW: In-Memory Cache for User Tracking ---
 const userCache = {
@@ -417,7 +354,7 @@ async function sendDefaultMessage(phone, phoneNumberId) {
   await sendWhatsAppMessage(phone, {
     type: "text",
     text: {
-      body: `*Start*\nSend 'Play' to start a new game, 'bet' for betting arbitrage opportunities, 'shop' to browse our catalog, or 'help' for instructions.`
+      body: `*Start*\nSend 'Play' to start a new game, 'bet' for betting arbitrage opportunities, 'shop' or 'buy' to browse our catalog with pictures, or 'help' for instructions.`
     }
   }, phoneNumberId);
 }
@@ -532,7 +469,7 @@ async function handleBettingCommand(message, phone, phoneNumberId) {
   }
 }
 
-// NEW: Shopping functions
+// NEW: Shopping functions using native WhatsApp catalog
 async function handleShopCommand(phone, phoneNumberId) {
   await sendCategoryList(phone, phoneNumberId);
 }
@@ -547,7 +484,7 @@ async function sendCategoryList(phone, phoneNumberId) {
         text: "🛍️ Ascend Luxury Shop"
       },
       body: {
-        text: "Browse our premium collection"
+        text: "Browse our premium collection with product images"
       },
       footer: {
         text: "Select a category"
@@ -561,7 +498,7 @@ async function sendCategoryList(phone, phoneNumberId) {
               {
                 id: "category_MENS",
                 title: "👔 Men's Apparel",
-                description: "Professional & casual wear"
+                description: "Professional & casual wear (10 items)"
               }
             ]
           },
@@ -571,7 +508,7 @@ async function sendCategoryList(phone, phoneNumberId) {
               {
                 id: "category_WOMENS",
                 title: "👗 Women's Apparel",
-                description: "Elegant & sophisticated styles"
+                description: "Elegant & sophisticated styles (10 items)"
               }
             ]
           }
@@ -583,63 +520,99 @@ async function sendCategoryList(phone, phoneNumberId) {
   await sendWhatsAppMessage(phone, payload, phoneNumberId);
 }
 
-async function sendProductsForCategory(phone, phoneNumberId, category) {
-  const categoryProducts = Object.values(PRODUCTS).filter(p => p.category === category);
+/**
+ * Sends a catalog message using WhatsApp's native product_list type
+ * This shows product images directly from the Facebook catalog
+ */
+async function sendCatalogForCategory(phone, phoneNumberId, category) {
+  const productRetailerIds = PRODUCT_RETAILER_IDS[category];
   
-  // Create rows for up to 10 products (WhatsApp limit)
-  const rows = categoryProducts.slice(0, 10).map(product => ({
-    id: `product_${product.id}`,
-    title: product.title.substring(0, 24), // WhatsApp title limit
-    description: `${product.price.toLocaleString()} RWF - ${product.style}`
-  }));
+  if (!productRetailerIds || productRetailerIds.length === 0) {
+    console.error("No product IDs for category:", category);
+    return;
+  }
 
-  const payload = {
-    type: "interactive",
-    interactive: {
-      type: "list",
-      header: {
-        type: "text",
-        text: category === "MENS" ? "👔 Men's Collection" : "👗 Women's Collection"
-      },
-      body: {
-        text: "Select a product to view details"
-      },
-      footer: {
-        text: "Tap to view product"
-      },
-      action: {
-        button: "View Products",
-        sections: [
-          {
-            title: "Products",
-            rows: rows
-          }
-        ]
-      }
-    }
-  };
-
-  await sendWhatsAppMessage(phone, payload, phoneNumberId);
+  // Split into chunks of 30 (WhatsApp limit)
+  const chunks = chunkArray(productRetailerIds, 30);
+  
+  for (const chunk of chunks) {
+    await sendCatalogChunk(phone, phoneNumberId, category, chunk);
+    await new Promise(resolve => setTimeout(resolve, 500)); // Small delay between chunks
+  }
 }
 
-async function sendProductDetails(phone, phoneNumberId, productId) {
-  const product = PRODUCTS[productId];
-  if (!product) return;
+/**
+ * Sends a single catalog chunk with up to 30 products
+ */
+async function sendCatalogChunk(phone, phoneNumberId, category, productRetailerIdsChunk) {
+  try {
+    const payload = {
+      type: "interactive",
+      interactive: {
+        type: "product_list",
+        header: {
+          type: "text",
+          text: category === "MENS" ? "👔 Men's Collection" : "👗 Women's Collection"
+        },
+        body: {
+          text: "Tap on any product to view details and add to cart"
+        },
+        action: {
+          catalog_id: CATALOG_ID,
+          sections: [
+            {
+              title: category === "MENS" ? "Men's Apparel" : "Women's Apparel",
+              product_items: productRetailerIdsChunk.map(id => ({
+                product_retailer_id: id
+              }))
+            }
+          ]
+        }
+      }
+    };
 
+    await sendWhatsAppMessage(phone, payload, phoneNumberId);
+    console.log(`Catalog chunk sent successfully for category ${category} with ${productRetailerIdsChunk.length} products`);
+  } catch (error) {
+    console.error("Error sending catalog chunk:", error);
+    throw error;
+  }
+}
+
+/**
+ * Splits an array into chunks of a given size
+ */
+function chunkArray(array, chunkSize) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+/**
+ * Handle product selection - now we need to ask for size since WhatsApp
+ * catalog doesn't include size selection natively
+ */
+async function handleProductSelection(phone, phoneNumberId, productRetailerId) {
   // Initialize cart if not exists
   if (!userCarts.has(phone)) {
     userCarts.set(phone, { items: [], stage: "BROWSING" });
   }
 
   const cart = userCarts.get(phone);
-  cart.currentProduct = product;
+  cart.currentProduct = productRetailerId;
   cart.stage = "SELECTING_SIZE";
   userCarts.set(phone, cart);
 
-  const sizeRows = product.sizes.map(size => ({
-    id: `size_${size}`,
+  const productDetails = PRODUCT_DETAILS[productRetailerId];
+  const sizes = PRODUCT_SIZES[productRetailerId] || ["One Size"];
+
+  // Create size selection rows
+  const sizeRows = sizes.map(size => ({
+    id: `size_${productRetailerId}_${size}`,
     title: `Size ${size}`,
-    description: `Select size ${size}`
+    description: `Select size ${size} for ${productDetails.title}`
   }));
 
   const payload = {
@@ -648,16 +621,16 @@ async function sendProductDetails(phone, phoneNumberId, productId) {
       type: "list",
       header: {
         type: "text",
-        text: product.title
+        text: "Select Size"
       },
       body: {
-        text: `${product.description}\n\n💰 Price: ${product.price.toLocaleString()} RWF\n✨ Style: ${product.style}\n\nSelect your size:`
+        text: `${productDetails.title}\n💰 Price: ${productDetails.price.toLocaleString()} RWF\n✨ Style: ${productDetails.style}\n\nPlease select your size:`
       },
       footer: {
         text: "Choose size"
       },
       action: {
-        button: "Select Size",
+        button: "View Sizes",
         sections: [
           {
             title: "Available Sizes",
@@ -671,19 +644,20 @@ async function sendProductDetails(phone, phoneNumberId, productId) {
   await sendWhatsAppMessage(phone, payload, phoneNumberId);
 }
 
-async function handleSizeSelection(phone, phoneNumberId, size) {
+async function handleSizeSelection(phone, phoneNumberId, productRetailerId, size) {
   const cart = userCarts.get(phone);
-  if (!cart || !cart.currentProduct) return;
+  if (!cart || cart.currentProduct !== productRetailerId) return;
 
-  const product = cart.currentProduct;
+  const productDetails = PRODUCT_DETAILS[productRetailerId];
   
   // Add to cart
   const cartItem = {
-    productId: product.id,
-    title: product.title,
-    price: product.price,
+    productId: productRetailerId,
+    title: productDetails.title,
+    price: productDetails.price,
     size: size,
-    quantity: 1
+    quantity: 1,
+    style: productDetails.style
   };
 
   cart.items.push(cartItem);
@@ -720,7 +694,7 @@ async function handleViewCart(phone, phoneNumberId) {
   if (!cart || cart.items.length === 0) {
     await sendWhatsAppMessage(phone, {
       type: "text",
-      text: { body: "Your cart is empty. Use 'shop' to start shopping!" }
+      text: { body: "Your cart is empty. Use 'shop' to start shopping with our image catalog!" }
     }, phoneNumberId);
     return;
   }
@@ -755,7 +729,7 @@ async function handleClearCart(phone, phoneNumberId) {
   userCarts.delete(phone);
   await sendWhatsAppMessage(phone, {
     type: "text",
-    text: { body: "Your cart has been cleared. Use 'shop' to start shopping again!" }
+    text: { body: "Your cart has been cleared. Use 'shop' to start shopping with our image catalog!" }
   }, phoneNumberId);
 }
 
@@ -847,7 +821,7 @@ async function sendHelpMessage(phone, phoneNumberId) {
 5️⃣ Answer questions by selecting options.
 
 *Shopping Commands:*
-• 'shop' or 'buy' - Browse our luxury collection
+• 'shop' or 'buy' - Browse our luxury collection with product images
 • 'cart' - View your shopping cart
 • 'checkout' - Complete your purchase
 
@@ -1235,15 +1209,19 @@ async function handleInteractiveMessage(message, phone, phoneNumberId) {
   // Handle shopping interactions
   if (replyId.startsWith('category_')) {
     const category = replyId.replace('category_', '');
-    await sendProductsForCategory(phone, phoneNumberId, category);
+    await sendCatalogForCategory(phone, phoneNumberId, category);
   } 
   else if (replyId.startsWith('product_')) {
     const productId = replyId.replace('product_', '');
-    await sendProductDetails(phone, phoneNumberId, productId);
+    await handleProductSelection(phone, phoneNumberId, productId);
   }
   else if (replyId.startsWith('size_')) {
-    const size = replyId.replace('size_', '');
-    await handleSizeSelection(phone, phoneNumberId, size);
+    const parts = replyId.replace('size_', '').split('_');
+    if (parts.length >= 2) {
+      const productId = parts[0] + '_' + parts[1]; // Reconstruct product ID
+      const size = parts.slice(2).join('_'); // Get size (handles multi-word sizes)
+      await handleSizeSelection(phone, phoneNumberId, productId, size);
+    }
   }
   else if (replyId === 'MORE_SHOPPING') {
     await handleShopCommand(phone, phoneNumberId);
